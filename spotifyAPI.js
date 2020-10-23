@@ -3,6 +3,7 @@ const utils = require('./utils');
 const fs = require('fs').promises;
 const Model = require('./model');
 var formurlencoded = require('form-urlencoded').default;
+let auth = require('./auth.json');
 
 
 class spotifyAPI {
@@ -18,7 +19,7 @@ class spotifyAPI {
         this.headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
-            Authorization: "Bearer BQClAmjuxNrJZ0VHxMm6Lh-LIZIXIXKodQB26hD63p8lCt9vQSLAnObycxLy7GcVyu0kxUhuxIYZEh2Syvg_tPyEyXuuFqe0qQ51ig1Ub_UDKODkrySaifAAQ5rBOeC6hh_lNtkzJE4M79oMoZ9MmheiwPwm0ok"
+            Authorization: `Bearer ${auth.token}`
         };
         this.getJSON = bent('GET', 'json', this.headers);
         this.getBuffer = bent('GET');
@@ -34,16 +35,10 @@ class spotifyAPI {
         this.model = model;
     }
 
-    async authorise() {
-        let res = await this.auth('https://accounts.spotify.com/api/token',formurlencoded({'grant_type': 'client_credentials'}));
-        res = await res.json();
-        return res.access_token;
-    }
-
     itterate() {
         let proxy = this;
         this.throttle.itteration++;
-        this.throttle.wait = utils.map(Math.min(this.throttle.itteration, this.throttle.maxItterations), 0, this.throttle.maxItterations, 100, 250);
+        this.throttle.wait = utils.map(Math.min(this.throttle.itteration, this.throttle.maxItterations), 0, this.throttle.maxItterations, 50, 250);
         this.throttle.hardThrottle = this.throttle.itteration > this.throttle.maxItterations ? true : false;
         if (this.throttle.timeout != null) {
             clearTimeout(this.throttle.timeout);
@@ -54,11 +49,11 @@ class spotifyAPI {
             console.log('itteration reset');
             proxy.throttle.itteration = 0;
         }, proxy.throttle.itterationLife);
+
+        
     }
 
-    async getArtist(artist, limit, offset) {
-        await this.checkAuth();
-        this.itterate();
+    async wait(){
         if (this.throttle.active) {
             await utils.wait(this.throttle.wait);
             console.log('waited', this.throttle.wait);
@@ -69,6 +64,12 @@ class spotifyAPI {
         else {
             this.throttle.active = true;
         }
+    }
+
+    async getArtist(artist, limit, offset) {
+        await this.checkAuth();
+        this.itterate();
+        await this.wait();
 
         artist = encodeURIComponent(artist);
         offset = offset ? offset : 0;
@@ -90,28 +91,12 @@ class spotifyAPI {
         }
     }
 
-    async checkAuth() {
-        try {
-            let res = await this.getJSON(`https://api.spotify.com/v1/search?q=imagine&type=artist&offset=0&limit=1`);
-            return true;
-        }
-        catch (e) {
-            console.log('authorizing');
-            let token = await this.authorise();
-            this.headers.Authorization = `Bearer ${token}`;
-            this.getJSON = bent('GET', 'json', this.headers);
-            console.log('authorized');
-            return false;
-        }
-    }
-
     async downloadArtistImg(artist) {
         let proxy = this;
         let files;
         try {
             files = await fs.readdir(`./images/artists`);
             var img = files.find(img => {
-                console.log(img,artist.toLowerCase());
                 return img.includes(artist.toLowerCase());
             });
             if(!img){
@@ -151,6 +136,34 @@ class spotifyAPI {
         else {
             console.error(`expected array or string ${typeof artistsToGet} provided`);
         }
+    }
+
+    async authorise() {
+        let res = await this.auth('https://accounts.spotify.com/api/token',formurlencoded({'grant_type': 'client_credentials'}));
+        res = await res.json();
+        return res.access_token;
+    }
+
+    async checkAuth() {
+        try {
+            let res = await this.getJSON(`https://api.spotify.com/v1/search?q=imagine&type=artist&offset=0&limit=1`);
+            return true;
+        }
+        catch (e) {
+            console.log('authorizing');
+            let token = await this.authorise();
+            await this.writeAuth(token);
+            this.headers.Authorization = `Bearer ${token}`;
+            this.getJSON = bent('GET', 'json', this.headers);
+            console.log('authorized');
+            return false;
+        }
+    }
+
+    async writeAuth(token){
+        const fileName = './auth.json'; 
+        auth.token = token;      
+        await fs.writeFile(fileName, JSON.stringify(auth));
     }
 
 }

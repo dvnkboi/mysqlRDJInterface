@@ -18,7 +18,7 @@ app.get('/api', function (req, res) {
     ref: req.query.ref,
     mod1: req.query.mod1,
     limit: req.query.limit,
-    page: req.params.page,
+    page: req.query.page,
     sortRef: req.query.sortRef,
     sortDir: req.query.sortDir
   };

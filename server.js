@@ -6,7 +6,7 @@ let models = require('./models');
 
 //globals
 const app = express();
-let model,processor,rdj;
+let processor,rdj;
 
 app.get('/api', function (req, res) {
   const config = {
@@ -17,11 +17,16 @@ app.get('/api', function (req, res) {
     db: req.query.db,
     ref: req.query.ref,
     mod1: req.query.mod1,
-    limit: req.query.limit,
-    page: req.query.page,
-    sortRef: req.query.sortRef,
-    sortDir: req.query.sortDir
+    limit: parseInt(req.query.limit),
+    page: parseInt(req.query.page),
+    sortRef: req.query.sortref,
+    sortDir: req.query.sortdir
   };
+
+
+  processor.setReq(req);
+  processor.setRes(res);
+
 
   if (Object.keys(models).includes(config.db)) {
     processor.setModel(models[config.db]);
@@ -35,8 +40,8 @@ app.get('/api', function (req, res) {
 
   (async () => {
     await processor.authenticate(config.apiKey);
-    //await processor.processRequest(config, req, res);
-    res.json(await processor.getJSON(config));
+    await processor.processRequest(config);
+    //res.json(res);
   })();
 
   //let processor = new Controller();
@@ -88,11 +93,9 @@ rdj = new RdjManager(processor);
 
 app.listen(3000);
 
-
-
 //set up for watchers and background tasks
 
-let hiddenModel = new Model('radiodj2020');
+let hiddenModel = new Model('radiodj2020_-_sql');
 let hiddenProcessor = new Controller(hiddenModel, null, null);
 let hiddenRdj = new RdjManager(hiddenProcessor);
 

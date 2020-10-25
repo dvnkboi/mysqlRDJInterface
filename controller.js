@@ -257,11 +257,24 @@ class Controller {
 
                             if (config.mod1 == "true" || config.mod1 == "false") {
                                 result.resultSet = await this.model.getJSON(config.table, config.col, config.ref, config.mod1);
-                                result.numOfRows = result.resultSet.length;
+                                try{
+                                    result.numOfRows = result.resultSet.length;
+                                }
+                                catch(e){
+                                    result.resultSet = [];
+                                    result.numOfRows = 0;
+                                }
+                                
                             }
                             else {
                                 result.resultSet = await this.model.getJSON(config.table, config.col, config.ref, false);
-                                result.numOfRows = result.resultSet.length;
+                                try{
+                                    result.numOfRows = result.resultSet.length;
+                                }
+                                catch(e){
+                                    result.resultSet = [];
+                                    result.numOfRows = 0;
+                                }
                             }
                         }
                         else {
@@ -276,12 +289,24 @@ class Controller {
                     else {
                         result.resultSet = await this.model.getAllJSON(config.table);
                         result.found = await this.model.getNumOfRows(config.table);
-                        result.numOfRows = result.resultSet.length;
+                        try{
+                            result.numOfRows = result.resultSet.length;
+                        }
+                        catch(e){
+                            result.resultSet = [];
+                            result.numOfRows = 0;
+                        }
                     }
                 }
                 else {
                     result.resultSet = await this.model.getTables();
-                    result.numOfRows = result.resultSet.length;
+                    try{
+                        result.numOfRows = result.resultSet.length;
+                    }
+                    catch(e){
+                        result.resultSet = [];
+                        result.numOfRows = 0;
+                    }
                 }
             }
             else if (config.action === 'update') {

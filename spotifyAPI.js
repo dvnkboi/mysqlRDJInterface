@@ -5,8 +5,7 @@ const Model = require('./model');
 var formurlencoded = require('form-urlencoded').default;
 let auth = require('./auth.json');
 
-
-class spotifyAPI {
+class MBA {
     constructor(model) {
 
         this.auth = bent('POST',
@@ -17,10 +16,9 @@ class spotifyAPI {
         );
 
         this.headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${auth.token}`
-        };
+            "User-Agent": "ampuptest/0.0.1 ( ampupradio.com )",
+            "Accept": "application/json"
+        }
         this.getJSON = bent('GET', 'json', this.headers);
         this.getBuffer = bent('GET');
         this.throttle = {
@@ -50,10 +48,10 @@ class spotifyAPI {
             proxy.throttle.itteration = 0;
         }, proxy.throttle.itterationLife);
 
-        
+
     }
 
-    async wait(){
+    async wait() {
         if (this.throttle.active) {
             await utils.wait(this.throttle.wait);
             console.log('waited', this.throttle.wait);
@@ -66,87 +64,112 @@ class spotifyAPI {
         }
     }
 
-    async getArtist(artist, limit, offset) {
+    async getRelease(artist, title, limit, offset) {
+
+        let releaseExistCheck = [];
+        releaseExistCheck = await this.model.getJSON('releases', 'release', res.desc, true) || [];
+        if (releaseExistCheck.length >= 1) {
+            console.log('release already in database');
+            return null;
+        }
+
+        limit = limit ? limit : 10;
+        offset = offset ? offset : 0;
+
         await this.checkAuth();
         this.itterate();
         await this.wait();
 
-        artist = encodeURIComponent(artist);
-        offset = offset ? offset : 0;
-        limit = limit ? limit : 10;
-        try {
-            let res = await this.getJSON(`https://api.spotify.com/v1/search?q=${artist}&type=artist&offset=${offset}&limit=${limit}`);
+        let res = {};
+        let desc = `${artist}_-_${title}`;
 
-            let dbArtist = await this.model.getJSON('artists', 'name', res.artists.items[0].name, false);
-            if (dbArtist.length < 1) {
-                let modRes = JSON.parse(JSON.stringify(res));
-                modRes = modRes.artists.items[0];
-                this.model.insertJSON('artists', JSON.stringify(modRes));
-            }
-            return res;
+        let escapes = ['\\', '+', '-', '&&', '||', '!', '(', ')', '{', '}', '[', ']', '^', '"', '~', '*', '?', ':', '/'];
+        for (const ch of escapes) {
+            title = title.replace(ch, '\\' + ch);
+            artist = artist.replace(ch, '\\' + ch);
         }
-        catch (e) {
-            console.error(e);
+
+        let url = encodeURI(`https://musicbrainz.org/ws/2/release-group?query=artist:"${artist}" AND release:${title}&limit=${limit}&offset=${offset}`);
+        res = await this.getJSON(url);
+        if(res.count == 0){
             return null;
         }
+        delete res.offset;
+        res.desc = desc.split(' ').join('_');
+
+        this.model.insertJSON('releases', JSON.stringify(res));
+
+        await this.getReleaseArtists(res);
+        return res;
     }
 
-    async downloadArtistImg(artist) {
-        let proxy = this;
-        let files;
+    async getReleaseArtists(releaseObj) {
+        let artistExistCheck = [];
         try {
-            files = await fs.readdir(`./images/artists`);
-            var img = files.find(img => {
-                return img.includes(artist.toLowerCase());
-            });
-            if(!img){
-                throw new Error('artist image not found');
-            }
-        } 
-        catch (e) {
-            let res = await this.getArtist(artist, 1, 0);
-            let artistName = res.artists.items[0].name;
-            if (res) {
-                for (const img of res.artists.items[0].images) {
-                    try {
-                        await fs.access(`./images/artists/${artistName.toLowerCase()}_-_${img.height}_-_${img.width}`);
+            for (const release of releaseObj['release-groups']) {
+                for (const art of release['artist-credit']) {
+                    if(!art.name){
+                        art.name = art.artist.name;
                     }
-                    catch(e){
-                        let image = await proxy.getBuffer(img.url);
-                        image = await image.arrayBuffer();
-                        if (image) {
-                            await fs.writeFile(`./images/artists/${artistName.toLowerCase()}_-_${img.height}_-_${img.width}`, image);
-                            console.log('got images for ',artistName.toLowerCase());
-                        }
-                        else {
-                            console.log('couldnt process image');
-                        }
+                    artistExistCheck = await this.model.getJSON('artists', 'artist', art.name, true) || [];
+                    if (artistExistCheck.length < 1) {
+                        this.model.insertJSON('artists', JSON.stringify(art));
                     }
                 }
             }
+            return true;
+        }
+        catch (e) {
+            return false;
         }
     }
 
-    async dlMultArtistImg(artistsToGet) {
-        if (Array.isArray(artistsToGet) || typeof artistsToGet == 'string') {
-            for (const artist of artistsToGet) {
-                await spoopipoo.downloadArtistImg(artist);
-            }
-        }
-        else {
-            console.error(`expected array or string ${typeof artistsToGet} provided`);
+    async getMultipleReleases(artistRelease) {
+        for (const artist in artistRelease) {
+            await this.getRelease(artist, artistRelease[artist]);
         }
     }
+
+    // async downloadArtistImg(artist) {
+    //     let proxy = this;
+    //     let files;
+    //     try {
+    //         files = await fs.readdir(`./images/artists`);
+    //         var img = files.find(img => {
+    //             return img.includes(artist.toLowerCase());
+    //         });
+    //         if (!img) {
+    //             throw new Error('artist image not found');
+    //         }
+    //     }
+    //     catch (e) {
+    //         //let res = await this.getArtist(artist, 1, 0);
+    //         //let artistName = res.artists.items[0].name;
+
+    //     }
+    // }
+
+    // async dlMultArtistImg(artistsToGet) {
+    //     if (Array.isArray(artistsToGet) || typeof artistsToGet == 'string') {
+    //         for (const artist of artistsToGet) {
+    //             await this.downloadArtistImg(artist);
+    //         }
+    //     }
+    //     else {
+    //         console.error(`expected array or string ${typeof artistsToGet} provided`);
+    //     }
+    // }
 
     async authorise() {
-        let res = await this.auth('https://accounts.spotify.com/api/token',formurlencoded({'grant_type': 'client_credentials'}));
+        return "null";
+        let res = await this.auth('https://accounts.spotify.com/api/token', formurlencoded({ 'grant_type': 'client_credentials' }));
         res = await res.json();
         return res.access_token;
     }
 
     async checkAuth() {
         try {
-            let res = await this.getJSON(`https://api.spotify.com/v1/search?q=imagine&type=artist&offset=0&limit=1`);
+            let res = await this.getJSON(encodeURI(`https://musicbrainz.org/ws/2/release-group?query=artist:"imagine dragons" AND release:origins&limit=1&offset=0`));
             return true;
         }
         catch (e) {
@@ -160,42 +183,41 @@ class spotifyAPI {
         }
     }
 
-    async writeAuth(token){
-        const fileName = './auth.json'; 
-        auth.token = token;      
+    async writeAuth(token) {
+        const fileName = './auth.json';
+        auth.token = token;
         await fs.writeFile(fileName, JSON.stringify(auth));
     }
 
 }
 
 
-let model = new Model('store');
-
-let spoopipoo = new spotifyAPI(model);
-
 (async () => {
-    artistsToGet = [
-        'imagine dragons',
-        'FRND',
-        'gwen stefani',
-        'party favor',
-        'ghostmane',
-        'skrillex',
-        'diplo',
-        'Grimes',
-        'troyboi',
-        'dillon francis',
-        'caravan palace',
-        'Panic!At the disco',
-        'Bon iver',
-        'joji',
-        'bazzi',
-        'juice WRLD',
-        'HOKO',
-        'Ooyy',
-        'oliver tree',
-        'ekali',
-        'denzel curry'
-    ];
-    await spoopipoo.dlMultArtistImg(artistsToGet);
+    let title = 'FRANCHISE';
+    let artist = 'travis scott';
+    let store = new Model('store');
+    let musicAPI = new MBA(store);
+    let travis = await musicAPI.getRelease('travis scott', 'franchise');
+    let artRel = {
+        'travis scott': 'franchise',
+        'imagine dragons': 'origins',
+        'imagine dragons': 'smoke + mirrors',
+        'jaden': 'erys',
+        'childish gambino': 'miss anthropocene (Deluxe edition)',
+        'ghostmane': 'lazaretto',
+        'louis the child': 'Here For Now',
+        'iamjakehill': 'Better Off Dead',
+    }
+
+    await musicAPI.getMultipleReleases(artRel);
+
 })();
+
+
+
+
+// let model = new Model('store');
+
+// let spoopipoo = new MBA(model);
+
+

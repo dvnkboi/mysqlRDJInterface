@@ -3,36 +3,49 @@ const BaseDatabase = require("mysql-async-wrapper").default;
 const utils = require('./utils');
 const MySQLEvents = require('@rodrigogs/mysql-events');
 const { EventEmitter } = require("events");
+const MongoClient = require('mongodb').MongoClient;
 
 
 class Model {
 
     constructor(db) {
+        this.dbName = db.split('_-_')[0];
+        this.dbType = db.split('_-_')[1];
+        if(this.dbType == "sql"){
+            //mysql config const
+            this.config = { // connection to db with config
+                host: 'localhost',
+                user: 'root',
+                password: '8576',
+                database: this.dbName,
+                connectionLimit: 10,
+                waitForConnections: true,
+                queueLimit: 0
+            };
+            try {
+                this.pool = mysql.createPool(this.config);
+                this.db;
+                this.connection;
+            }
+            catch (err) {
+                console.error('error creating model with given config');
+            }
+        }
+        else{
+            this.connection;
+            this.client;
+            this.collections = {};
+        }
+        this.watcher = {};
+        
 
-        //main api model const
-        this.config = { // connection to db with config
-            host: 'localhost',
-            user: 'root',
-            password: '8576',
-            database: db,
-            connectionLimit: 10,
-            waitForConnections: true,
-            queueLimit: 0
-        };
+        //manage TTL of connection, is connection does not query for more than ttl, it disconnects 
         this.life = {
             stayConnected: false,
             ttl: 5000,
             timeout: null,
             watcherCount:0,
             isConnected:false
-        }
-        try {
-            this.pool = mysql.createPool(this.config);
-            this.db;
-            this.connection;
-        }
-        catch (err) {
-            console.error('error creating model with given config');
         }
         this.limit;
         this.offset = 0;
@@ -55,7 +68,12 @@ class Model {
         if(this.life.watcherCount < 1){
             this.life.timeout = setTimeout(() => {
                 if(this.life.isConnected){
-                    proxy.disconnect();
+                    if(this.dbType == "sql"){
+                        proxy.disconnect();
+                    }
+                    else if(this.dbType == "nosql"){
+                        proxy.disconnect();
+                    }
                     proxy.eventHandler.event.emit('died');
                     this.life.isConnected = false;
                 }
@@ -64,64 +82,129 @@ class Model {
     }
 
     async connect() {
-        const maxRetryCount = 3; // Number of Times To Retry
-        const retryErrorCodes = ["ER_LOCK_DEADLOCK", "ERR_LOCK_WAIT_TIMEOUT"] // Retry On which Error Codes 
-        try {
-            this.db = new BaseDatabase(this.pool, { //wrap mysql pool in async/await compatible class
-                maxRetryCount,
-                retryErrorCodes
-            });
-            this.connection = await this.db.getConnection();
-            console.info('connected to ' + this.config.database);
-
-            return true;
+        if(this.dbType == "sql"){
+            const maxRetryCount = 3; // Number of Times To Retry
+            const retryErrorCodes = ["ER_LOCK_DEADLOCK", "ERR_LOCK_WAIT_TIMEOUT"] // Retry On which Error Codes 
+            try {
+                this.db = new BaseDatabase(this.pool, { //wrap mysql pool in async/await compatible class
+                    maxRetryCount,
+                    retryErrorCodes
+                });
+                this.connection = await this.db.getConnection();
+                console.info('connected to ' + this.dbName + ' SQL');
+    
+                return true;
+            }
+            catch (err) {
+                console.error(err);
+                return false;
+            }
         }
-        catch (err) {
-            console.error(err);
-            return false;
+        else if(this.dbType == "nosql"){
+            try {
+                this.client = await MongoClient.connect(`mongodb://admin:List2kat@localhost:27017/`,{ useNewUrlParser: true, useUnifiedTopology: true });
+                this.connection = await this.client.db(`${this.dbName}`);
+                console.info('connected to ' + this.dbName + ' NOSQL');
+                return true;
+            }
+            catch (err) {
+                console.error(err);
+                return false;
+            }
         }
     }
 
     async watch(schema) {
         this.life.watcherCount++;
         let proxy = this;
-        this.watcher = new MySQLEvents(this.pool, {
-            startAtEnd: true,
-            excludedSchemas: {
-                mysql: true,
-            },
-        });
-        await this.watcher.start();
-        
-        try {
-            console.log('watcher started on ' + schema.split('.')[1]);
-        }
-        catch (e) {
-            console.log('watcher started on ' + schema);
-        }
-
-        this.watcher.addTrigger({
-            name: schema,
-            expression: schema,
-            statement: MySQLEvents.STATEMENTS.ALL,
-            onEvent: async (event) => {
-                if (proxy.eventHandler.throttle) {
-                    if (proxy.eventHandler.allow) {
-                        proxy.eventHandler.allow = false;
-
+        if(this.dbType == 'sql'){
+            if(Object.keys(this.watcher).length === 0 && this.watcher.constructor === Object){
+                this.watcher = new MySQLEvents(this.pool, {
+                    startAtEnd: true,
+                    excludedSchemas: {
+                        mysql: true,
+                    },
+                });
+                try{
+                    await this.watcher.start();
+                }
+                catch(e){
+                    console.error(e);
+                }
+            }
+            try {
+                console.log('watcher started on ' + schema.split('.')[1]);
+            }
+            catch (e) {
+                console.log('watcher started on ' + schema);
+            }
+    
+            this.watcher.addTrigger({
+                name: schema,
+                expression: schema,
+                statement: MySQLEvents.STATEMENTS.ALL,
+                onEvent: async (event) => {
+                    if (proxy.eventHandler.throttle) {
+                        if (proxy.eventHandler.allow) {
+                            proxy.eventHandler.allow = false;
+    
+                            proxy.eventHandler.event.emit(event.table, event);
+    
+                            setTimeout(() => {
+                                proxy.eventHandler.allow = true;
+                            }, proxy.eventHandler.timeout);
+                        }
+                    }
+                    else {
+                        proxy.eventHandler.allow = true;
                         proxy.eventHandler.event.emit(event.table, event);
-
-                        setTimeout(() => {
-                            proxy.eventHandler.allow = true;
-                        }, proxy.eventHandler.timeout);
+                    }
+                },
+            });
+        }
+        else if(this.dbType == 'nosql'){
+            try {
+                console.log('tryin dawg');
+                if(!schema.split('.')[1]){
+                    throw new Error('pass');
+                }
+                else{
+                    console.log('expected collection,mysql schema given',schema);
+                }
+            }
+            catch (e) {
+                try{
+                    if (!this.life.isConnected) {
+                        this.life.isConnected = true;
+                        await this.connect();
                     }
                 }
-                else {
-                    proxy.eventHandler.allow = true;
-                    proxy.eventHandler.event.emit(event.table, event);
+                catch(e){
+                    console.log(e);
                 }
-            },
-        });
+                await this.manageCollections(schema);
+                this.watcher[schema] = await this.collections[schema].watch();
+                console.log('watching',schema);
+                this.watcher[schema].on("change",(next) => {
+                    if (proxy.eventHandler.throttle) {
+                        if (proxy.eventHandler.allow) {
+                            proxy.eventHandler.allow = false;
+    
+                            proxy.eventHandler.event.emit(schema, next);
+                            console.log('changed',next);
+                            setTimeout(() => {
+                                proxy.eventHandler.allow = true;
+                            }, proxy.eventHandler.timeout);
+                        }
+                    }
+                    else {
+                        proxy.eventHandler.allow = true;
+                        proxy.eventHandler.event.emit(schema, next);
+                    }
+                });
+            }
+        }
+        
     }
 
     async unwatch(schema) {
@@ -135,60 +218,100 @@ class Model {
 
     async getMatching(table, col, ref, strict) { //get all items matching col == ref or col like %ref%
         this.manageLife();
-        
-        let query;
-        
-        //pagination and sort
-        let queryLimit;
-        let querySort;
-        if (this.limit) {
-            queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
-        }
-        else {
-            queryLimit = ``;
-        }
-        if (this.sortRef) {
-            if (this.sortDir == 'asc') {
-                querySort = `ORDER BY ${this.sortRef} ASC `;
-            }
-            else if (this.sortDir == 'desc') {
-                querySort = `ORDER BY ${this.sortRef} DESC `;
-            }
-        }
-        else {
-            querySort = ``;
-        }
-
-
-        if (utils.isInt(ref)) {
-            ref = parseInt(ref);
-            query = `Select * from ${table} where ${col} = ${ref} `;
-        }
-        else {
-            if (strict == 'true') {
-                query = `Select * from ${table} where ${col} = "${ref}" `;
-            }
-            else {
-                query = `Select * from ${table} where ${col} like '%${ref}%' `;
-            }
-        }
-
-        query += querySort + queryLimit;
-        try {
+        try{
             if (!this.life.isConnected) {
                 this.life.isConnected = true;
                 await this.connect();
             }
-            const res = await this.connection.executeQuery(query, []);
-            return res;
         }
-        catch (err) {
-            console.error(err);
-            return null;
+        catch(e){
+            console.log(e);
         }
-        finally {
-            //this.disconnect(); // To Release Connection
-            //console.log('disconnected');
+
+        if(this.dbType == 'sql'){
+            let query;
+        
+            //pagination and sort
+            let queryLimit;
+            let querySort;
+            if (this.limit) {
+                queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
+            }
+            else {
+                queryLimit = ``;
+            }
+            if (this.sortRef) {
+                if (this.sortDir == 'asc') {
+                    querySort = `ORDER BY ${this.sortRef} ASC `;
+                }
+                else if (this.sortDir == 'desc') {
+                    querySort = `ORDER BY ${this.sortRef} DESC `;
+                }
+            }
+            else {
+                querySort = ``;
+            }
+    
+    
+            if (utils.isInt(ref)) {
+                ref = parseInt(ref);
+                query = `Select * from ${table} where ${col} = ${ref} `;
+            }
+            else {
+                if (strict == 'true') {
+                    query = `Select * from ${table} where ${col} = "${ref}" `;
+                }
+                else {
+                    query = `Select * from ${table} where ${col} like '%${ref}%' `;
+                }
+            }
+    
+            query += querySort + queryLimit;
+            try {
+
+                const res = await this.connection.executeQuery(query, []);
+                return res;
+            }
+            catch (err) {
+                console.error(err);
+                return null;
+            }
+            finally {
+                //this.disconnect(); // To Release Connection
+                //console.log('disconnected');
+            }
+        }
+        else if(this.dbType == 'nosql'){
+            let filter = {};
+            if(strict){
+                filter[col] = ref;
+            }
+            else{
+                filter[col] = { $regex: `.*${ref}.*` };
+            }
+            try {
+
+                await this.manageCollections(table);
+                let res = await this.collections[table].find(filter).skip(this.offset);
+                if(this.limit){
+                    res = await res.limit(this.limit);
+                }
+                if(this.sortRef){
+                    let sort = {};
+                    sort[this.sortRef] = this.sortDir == "desc" ? -1 : 1;
+                    res = await res.sort(sort);
+                }
+                res = await res.toArray();
+                return res;
+            }
+            catch (err) {
+                console.error(err);
+                return null;
+            }
+            finally {
+                //this.disconnect(); // To Release Connection
+                //console.log('disconnected');
+            }
         }
     }
 
@@ -197,134 +320,159 @@ class Model {
         //pagination and sort
         let queryLimit;
         let querySort;
-        if (this.limit) {
-            queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
-        }
-        else {
-            queryLimit = ``;
-        }
-        if (this.sortRef) {
-            if (this.sortDir == 'asc') {
-                querySort = `ORDER BY ${this.sortRef} ASC `;
-            }
-            else if (this.sortDir == 'desc') {
-                querySort = `ORDER BY ${this.sortRef} DESC `;
-            }
-        }
-        else {
-            querySort = ``;
-        }
 
-        let query = `Select * from ${table} ` + querySort + queryLimit;
-
-        try {
+        try{
             if (!this.life.isConnected) {
                 this.life.isConnected = true;
                 await this.connect();
             }
-            const res = await this.connection.executeQuery(query, []);
+        }
+        catch(e){
+            console.log(e);
+        }
 
-            return res;
-        }
-        catch (err) {
-            console.error(err);
-            return null;
-        }
-        finally {
-            //this.disconnect(); // To Release Connection
-            //console.log('disconnected');
-        }
-    }
-
-    async getAllJSON(table) {
-        this.manageLife();
-        //pagination and sort
-        let queryLimit;
-        let querySort;
-        if (this.limit) {
-            queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
-        }
-        else {
-            queryLimit = ``;
-        }
-        if (this.sortRef) {
-            if (this.sortDir == 'asc') {
-                querySort = `ORDER BY ${this.sortRef} ASC `;
+        if(this.dbType == 'sql'){
+            if (this.limit) {
+                queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
             }
-            else if (this.sortDir == 'desc') {
-                querySort = `ORDER BY ${this.sortRef} DESC `;
+            else {
+                queryLimit = ``;
             }
-        }
-        else {
-            querySort = ``;
-        }
-
-        let query = `Select * from ${table} ` + querySort + queryLimit;
-
-        try {
-            if (!this.life.isConnected) {
-                this.life.isConnected = true;
-                await this.connect();
-            }
-            const res = await this.connection.executeQuery(query, []);
-                for (var i = 0; i < res.length; i++) {
-                    res[i] = JSON.stringify(res[i]);
-                    res[i] = JSON.parse(res[i]);
-                    Object.keys(res[i]).forEach(function (key) {
-                        res[i][key] = JSON.parse(res[i][key]);
-                    });
+            if (this.sortRef) {
+                if (this.sortDir == 'asc') {
+                    querySort = `ORDER BY \`${table.substring(0,table.length - 1)}\`->>"$.${this.sortRef}" ASC `;
                 }
-            return res;
+                else if (this.sortDir == 'desc') {
+                    querySort = `ORDER BY \`${table.substring(0,table.length - 1)}\`->>"$.${this.sortRef}" DESC `;
+                }
+            }
+            else {
+                querySort = ``;
+            }
+            let query = `Select * from ${table} ` + querySort + queryLimit;
+
+            try {
+                const res = await this.connection.executeQuery(query, []);
+    
+                return res;
+            }
+            catch (err) {
+                console.error(err);
+                return null;
+            }
+            finally {
+                //this.disconnect(); // To Release Connection
+                //console.log('disconnected');
+            }
         }
-        catch (err) {
-            return null;
+        else if(this.dbType == 'nosql'){
+
+            try {
+                await this.manageCollections(table);
+                let res = await this.collections[table].find().skip(this.offset);
+                if(this.limit){
+                    res = await res.limit(this.limit);
+                }
+                if(this.sortRef){
+                    let sort = {};
+                    sort[this.sortRef] = this.sortDir == "desc" ? -1 : 1;
+                    res = await res.sort(sort);
+                }
+                res = await res.toArray();
+                return res;
+            }
+            catch (err) {
+                console.error(err);
+                return null;
+            }
+            finally {
+                //this.disconnect(); // To Release Connection
+                //console.log('disconnected');
+            }
         }
-        finally {
-            //this.disconnect(); // To Release Connection
-            //console.log('disconnected');
-        }
+        
     }
 
     async getTables() {
         this.manageLife();
-        let query = `SELECT table_name as 'table' FROM information_schema.tables WHERE table_schema = "${this.config.database}"`;
-
-        try {
+        try{
             if (!this.life.isConnected) {
                 this.life.isConnected = true;
                 await this.connect();
             }
-            const res = await this.connection.executeQuery(query, []);
-            return res;
         }
-        catch (err) {
-            return null;
+        catch(e){
+            console.log(e);
         }
-        finally {
-            //this.disconnect(); // To Release Connection
-            //console.log('disconnected');
+        if(this.dbType == 'sql'){
+            let query = `SELECT table_name as 'table' FROM information_schema.tables WHERE table_schema = "${this.config.database}"`;
+
+            try {
+                const res = await this.connection.executeQuery(query, []);
+                return res;
+            }
+            catch (err) {
+                return null;
+            }
+            finally {
+                //this.disconnect(); // To Release Connection
+                //console.log('disconnected');
+            }
+        }
+        if(this.dbType == 'nosql'){
+            try{
+                const res = await this.connection.listCollections({},{nameOnly:true}).toArray();
+                return res;
+            }
+            catch(e){
+                return null;
+            }
+            finally{
+                //this.disconnect();
+            }
         }
     }
 
     async getNumOfRows(table) {
         this.manageLife();
-
-        let query = `Select count(*) as "count" from ${table}`;
-
-        try {
+        try{
             if (!this.life.isConnected) {
                 this.life.isConnected = true;
                 await this.connect();
             }
-            const res = await this.connection.executeQuery(query, []);
-            return res[0].count;
         }
-        catch (err) {
-            return 0;
+        catch(e){
+            console.log(e);
         }
-        finally {
-            //this.disconnect(); // To Release Connection
-            //console.log('disconnected');
+        if(this.dbType == 'sql'){
+            let query = `Select count(*) as "count" from ${table}`;
+
+            try {
+                const res = await this.connection.executeQuery(query, []);
+                return res[0].count;
+            }
+            catch (err) {
+                return 0;
+            }
+            finally {
+                //this.disconnect(); // To Release Connection
+                //console.log('disconnected');
+            }
+        }
+        else if(this.dbType == 'nosql'){
+            try {
+                await this.manageCollections(table);
+                const res = await this.collections[table].estimatedDocumentCount();
+                return res;
+            }
+            catch (err) {
+                console.log(err);
+                return 0;
+            }
+            finally {
+                //this.disconnect(); // To Release Connection
+                //console.log('disconnected');
+            }
         }
     }
 
@@ -340,80 +488,63 @@ class Model {
         }
     }
 
-    async getJSON(table, col, ref, strict) {
+    async insert(table,object){
         this.manageLife();
-        let query;
-
-        //pagination and sort
-        let queryLimit;
-        let querySort;
-        if (this.limit) {
-            queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
-        }
-        else {
-            queryLimit = ``;
-        }
-        if (this.sortRef) {
-            if (this.sortDir == 'asc') {
-                querySort = `ORDER BY ${table}->>"$.${this.sortRef}" ASC `;
-            }
-            else if (this.sortDir == 'desc') {
-                querySort = `ORDER BY ${table}->>"$.${this.sortRef}" DESC `;
-            }
-        }
-        else {
-            querySort = ``;
-        }
-
-        if (utils.isInt(ref)) {
-            ref = parseInt(ref);
-            query = `Select * from ${table} where artist->>"$.${col}" = ${ref} `;
-        }
-        else {
-            if (strict == 'true') {
-                query = `Select * from ${table} where artist->>"$.${col}" = "${ref}" `;
-            }
-            else {
-                query = `Select * from ${table} where artist->>"$.${col}" like '%${ref}%' `;
-            }
-        }
-
-        query += querySort + queryLimit;
-        try {
+        try{
             if (!this.life.isConnected) {
                 this.life.isConnected = true;
                 await this.connect();
             }
-            let res = await this.connection.executeQuery(query, []);
-            for (var i = 0; i < res.length; i++) {
-                res[i] = JSON.stringify(res[i]);
-                res[i] = JSON.parse(res[i]);
-                Object.keys(res[i]).forEach(function (key) {
-                    res[i][key] = JSON.parse(res[i][key]);
-                });
+        }
+        catch(e){
+            console.log(e);
+        }
+        if(this.dbType == 'sql'){
+
+        }
+        else if(this.dbType == 'nosql'){
+            try {
+                await this.manageCollections(table);
+                this.collections[table].insertOne(object);
+                return true;
             }
-            return res;
+            catch (err) {
+                console.log(err);
+                return false;
+            }
+            finally {
+                //this.disconnect(); // To Release Connection
+                //console.log('disconnected');
+            }
         }
-        catch (err) {
-            return null;
-        }
-        finally {
-            //this.disconnect(); // To Release Connection
-            //console.log('disconnected');
-        }
+
     }
 
-    async insertJSON(table,object){
+    async remove(table,col,ref,one){
         this.manageLife();
-        let query;
-        query = `insert into ${table} values('${object}')`;
-        try {
+        try{
             if (!this.life.isConnected) {
                 this.life.isConnected = true;
                 await this.connect();
             }
-            let res = await this.connection.executeQuery(query, []);
-            return res;
+        }
+        catch(e){
+            console.log(e);
+        }
+        let filter = {};
+        filter[col] = ref;
+        one = one ? true : false;
+        try {
+            await this.manageCollections(table);
+            
+            if(one){
+                let res = await this.collections[table].deleteOne(filter);
+                return res;
+            }
+            else{
+                let res = await this.collections[table].deleteMany(filter);
+                return res;
+            }
         }
         catch (err) {
             console.log(err);
@@ -425,17 +556,43 @@ class Model {
         }
     }
 
-    disconnect(){
+    async manageCollections(table){
         try{
-            console.info('disconnected from ',this.config.database);
-            this.db.close();
+            if(!this.collections[table]){
+                let collection = await this.connection.collection(table);
+                this.collections[table] = collection;
+            }
+            return true;
         }
         catch(e){
-            
+            console.error(e);
+            return false
+        }
+    }
+
+    disconnect(){
+        if(this.dbType == 'sql'){
+            try{
+                console.info('disconnected from ',this.dbName);
+                this.db.close();
+            }
+            catch(e){
+                
+            }
+        }
+        else if(this.dbType == 'nosql'){
+            try{
+                console.info('disconnected from ',this.dbName);
+                this.client.close();
+            }
+            catch(e){
+                
+            }
         }
     }
 
 };
+
 
 module.exports = Model;
 

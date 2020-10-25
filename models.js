@@ -2,13 +2,18 @@ const Model = require('./model');
 
 
 let models = {
-    addModel(db){
-        model = new Model(db);
-        this[db] = model;
-        this[db].eventHandler.event.on('died',() => {
-          delete this[db];
-        });
-    }
+  lookUpTable: {
+    'radiodj2020': 'sql',
+    'store': 'nosql'
+  },
+  addModel(db) {
+    let dbType = this.lookUpTable[db];
+    model = new Model(`${db}_-_${dbType}`);
+    this[db] = model;
+    this[db].eventHandler.event.on('died', () => {
+      delete this[db];
+    });
+  }
 }
 
 

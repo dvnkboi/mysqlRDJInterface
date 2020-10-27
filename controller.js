@@ -1,5 +1,3 @@
-const Model = require("./model");
-
 class Controller {
 
     constructor(model, req, res) {
@@ -345,7 +343,7 @@ class Controller {
             return;
         }
     }
-};
+}
 
 
 module.exports = Controller;

@@ -11,7 +11,7 @@ class Model {
     constructor(db) {
         this.dbName = db.split('_-_')[0];
         this.dbType = db.split('_-_')[1];
-        if(this.dbType == "sql"){
+        if (this.dbType == "sql") {
             //mysql config const
             this.config = { // connection to db with config
                 host: 'localhost',
@@ -31,104 +31,113 @@ class Model {
                 console.error('error creating model with given config');
             }
         }
-        else{
+        else if(this.dbType == "nosql"){
+            this.connectionString = `mongodb://admin:List2kat@localhost:27017/?authSource=admin&replicaSet=rsMain&readPreference=primary&ssl=false`;
+            this.connectionParams = {
+                useNewUrlParser: true,
+                useUnifiedTopology: true,
+                keepAlive: 1,
+                connectTimeoutMS: 30000
+            };
             this.connection;
-            this.client;
+            this.client = null;
             this.collections = {};
         }
         this.watcher = {};
-        
+
 
         //manage TTL of connection, is connection does not query for more than ttl, it disconnects 
         this.life = {
-            stayConnected: false,
+            keepAlive: false,
             ttl: 5000,
             timeout: null,
-            watcherCount:0,
-            isConnected:false
+            watcherCount: 0,
+            isConnected: false
         }
         this.limit;
         this.offset = 0;
         this.sortRef;
         this.sortDir = 'asc';
         this.eventHandler = {
-            timeout: 10,
+            timeout: 0,
             allow: true,
-            throttle: true,
-            event: new EventEmitter()
+            throttle: false,
+            event: new EventEmitter(),
+            hasDied:false
         };
     }
 
-    manageLife(){
+    async manageLife() {
         let proxy = this;
         if (this.life.timeout != null) {
             clearTimeout(this.life.timeout);
             this.life.timeout = null;
         }
-        if(this.life.watcherCount < 1){
-            this.life.timeout = setTimeout(() => {
-                if(this.life.isConnected){
-                    if(this.dbType == "sql"){
-                        proxy.disconnect();
-                    }
-                    else if(this.dbType == "nosql"){
-                        proxy.disconnect();
-                    }
-                    proxy.eventHandler.event.emit('died');
-                    this.life.isConnected = false;
+        if (this.life.watcherCount < 1) {
+            this.life.timeout = setTimeout(async () => {
+                if (this.life.isConnected) {
+                    await proxy.disconnect();
                 }
             }, proxy.life.ttl);
         }
     }
 
     async connect() {
-        if(this.dbType == "sql"){
-            const maxRetryCount = 3; // Number of Times To Retry
-            const retryErrorCodes = ["ER_LOCK_DEADLOCK", "ERR_LOCK_WAIT_TIMEOUT"] // Retry On which Error Codes 
-            try {
-                this.db = new BaseDatabase(this.pool, { //wrap mysql pool in async/await compatible class
-                    maxRetryCount,
-                    retryErrorCodes
-                });
-                this.connection = await this.db.getConnection();
-                console.info('connected to ' + this.dbName + ' SQL');
-    
-                return true;
-            }
-            catch (err) {
-                console.error(err);
-                return false;
+        try {
+            if (!this.life.isConnected) {
+                this.life.isConnected = true;
+                if (this.dbType == "sql") {
+                    const maxRetryCount = 3; // Number of Times To Retry
+                    const retryErrorCodes = ["ER_LOCK_DEADLOCK", "ERR_LOCK_WAIT_TIMEOUT"] // Retry On which Error Codes 
+                    try {
+                        this.db = new BaseDatabase(this.pool, { //wrap mysql pool in async/await compatible class
+                            maxRetryCount,
+                            retryErrorCodes
+                        });
+                        this.connection = await this.db.getConnection();
+                        console.info('connected to ' + this.dbName + ' SQL');
+
+                        return true;
+                    }
+                    catch (e) {
+                        console.error(e);
+                        return false;
+                    }
+                }
+                else if (this.dbType == "nosql") {
+                    try {
+                        this.client = await MongoClient.connect(this.connectionString, this.connectionParams);
+                        this.connection = this.client.db(`${this.dbName}`);
+                        console.info('connected to ' + this.dbName + ' NOSQL');
+                    }
+                    catch (e) {
+                        console.error(e);
+                        return false;
+                    }
+                }
             }
         }
-        else if(this.dbType == "nosql"){
-            try {
-                this.client = await MongoClient.connect(`mongodb://admin:List2kat@localhost:27017/`,{ useNewUrlParser: true, useUnifiedTopology: true });
-                this.connection = await this.client.db(`${this.dbName}`);
-                console.info('connected to ' + this.dbName + ' NOSQL');
-                return true;
-            }
-            catch (err) {
-                console.error(err);
-                return false;
-            }
+        catch (e) {
+            console.log(e);
         }
     }
 
     async watch(schema) {
+        await this.connect();
         this.life.watcherCount++;
         let proxy = this;
-        if(this.dbType == 'sql'){
-            if(Object.keys(this.watcher).length === 0 && this.watcher.constructor === Object){
+        if (this.dbType == 'sql') {
+            if (Object.keys(this.watcher).length === 0 && this.watcher.constructor === Object) {
                 this.watcher = new MySQLEvents(this.pool, {
                     startAtEnd: true,
                     excludedSchemas: {
                         mysql: true,
                     },
                 });
-                try{
+                try {
                     await this.watcher.start();
                 }
-                catch(e){
+                catch (e) {
                     console.error(e);
                 }
             }
@@ -138,7 +147,7 @@ class Model {
             catch (e) {
                 console.log('watcher started on ' + schema);
             }
-    
+
             this.watcher.addTrigger({
                 name: schema,
                 expression: schema,
@@ -147,9 +156,9 @@ class Model {
                     if (proxy.eventHandler.throttle) {
                         if (proxy.eventHandler.allow) {
                             proxy.eventHandler.allow = false;
-    
+
                             proxy.eventHandler.event.emit(event.table, event);
-    
+
                             setTimeout(() => {
                                 proxy.eventHandler.allow = true;
                             }, proxy.eventHandler.timeout);
@@ -162,36 +171,27 @@ class Model {
                 },
             });
         }
-        else if(this.dbType == 'nosql'){
+        else if (this.dbType == 'nosql') {
             try {
                 console.log('tryin dawg');
-                if(!schema.split('.')[1]){
+                if (!schema.split('.')[1]) {
                     throw new Error('pass');
                 }
-                else{
-                    console.log('expected collection,mysql schema given',schema);
+                else {
+                    console.log('expected collection,mysql schema given', schema);
                 }
             }
             catch (e) {
-                try{
-                    if (!this.life.isConnected) {
-                        this.life.isConnected = true;
-                        await this.connect();
-                    }
-                }
-                catch(e){
-                    console.log(e);
-                }
                 await this.manageCollections(schema);
                 this.watcher[schema] = await this.collections[schema].watch();
-                console.log('watching',schema);
-                this.watcher[schema].on("change",(next) => {
+                console.log('watching', schema);
+                this.watcher[schema].on("change", (next) => {
                     if (proxy.eventHandler.throttle) {
                         if (proxy.eventHandler.allow) {
                             proxy.eventHandler.allow = false;
-    
+
                             proxy.eventHandler.event.emit(schema, next);
-                            console.log('changed',next);
+                            console.log('changed', next);
                             setTimeout(() => {
                                 proxy.eventHandler.allow = true;
                             }, proxy.eventHandler.timeout);
@@ -204,7 +204,7 @@ class Model {
                 });
             }
         }
-        
+
     }
 
     async unwatch(schema) {
@@ -217,20 +217,12 @@ class Model {
     }
 
     async getMatching(table, col, ref, strict) { //get all items matching col == ref or col like %ref%
-        this.manageLife();
-        try{
-            if (!this.life.isConnected) {
-                this.life.isConnected = true;
-                await this.connect();
-            }
-        }
-        catch(e){
-            console.log(e);
-        }
+        await this.manageLife();
+        await this.connect();
 
-        if(this.dbType == 'sql'){
+        if (this.dbType == 'sql') {
             let query;
-        
+
             //pagination and sort
             let queryLimit;
             let querySort;
@@ -251,8 +243,8 @@ class Model {
             else {
                 querySort = ``;
             }
-    
-    
+
+
             if (utils.isInt(ref)) {
                 ref = parseInt(ref);
                 query = `Select * from ${table} where ${col} = ${ref} `;
@@ -265,7 +257,7 @@ class Model {
                     query = `Select * from ${table} where ${col} like '%${ref}%' `;
                 }
             }
-    
+
             query += querySort + queryLimit;
             try {
 
@@ -281,22 +273,22 @@ class Model {
                 //console.log('disconnected');
             }
         }
-        else if(this.dbType == 'nosql'){
+        else if (this.dbType == 'nosql') {
             let filter = {};
-            if(strict){
+            if (strict) {
                 filter[col] = ref;
             }
-            else{
+            else {
                 filter[col] = { $regex: `.*${ref}.*` };
             }
             try {
 
                 await this.manageCollections(table);
                 let res = await this.collections[table].find(filter).skip(this.offset);
-                if(this.limit){
+                if (this.limit) {
                     res = await res.limit(this.limit);
                 }
-                if(this.sortRef){
+                if (this.sortRef) {
                     let sort = {};
                     sort[this.sortRef] = this.sortDir == "desc" ? -1 : 1;
                     res = await res.sort(sort);
@@ -316,22 +308,14 @@ class Model {
     }
 
     async getAll(table) {
-        this.manageLife();
+        await this.manageLife();
+        await this.connect();
+
         //pagination and sort
         let queryLimit;
         let querySort;
 
-        try{
-            if (!this.life.isConnected) {
-                this.life.isConnected = true;
-                await this.connect();
-            }
-        }
-        catch(e){
-            console.log(e);
-        }
-
-        if(this.dbType == 'sql'){
+        if (this.dbType == 'sql') {
             if (this.limit) {
                 queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
             }
@@ -340,10 +324,10 @@ class Model {
             }
             if (this.sortRef) {
                 if (this.sortDir == 'asc') {
-                    querySort = `ORDER BY \`${table.substring(0,table.length - 1)}\`->>"$.${this.sortRef}" ASC `;
+                    querySort = `ORDER BY ${this.sortRef} ASC `;
                 }
                 else if (this.sortDir == 'desc') {
-                    querySort = `ORDER BY \`${table.substring(0,table.length - 1)}\`->>"$.${this.sortRef}" DESC `;
+                    querySort = `ORDER BY ${this.sortRef} DESC `;
                 }
             }
             else {
@@ -353,7 +337,7 @@ class Model {
 
             try {
                 const res = await this.connection.executeQuery(query, []);
-    
+
                 return res;
             }
             catch (err) {
@@ -365,15 +349,15 @@ class Model {
                 //console.log('disconnected');
             }
         }
-        else if(this.dbType == 'nosql'){
+        else if (this.dbType == 'nosql') {
 
             try {
                 await this.manageCollections(table);
                 let res = await this.collections[table].find().skip(this.offset);
-                if(this.limit){
+                if (this.limit) {
                     res = await res.limit(this.limit);
                 }
-                if(this.sortRef){
+                if (this.sortRef) {
                     let sort = {};
                     sort[this.sortRef] = this.sortDir == "desc" ? -1 : 1;
                     res = await res.sort(sort);
@@ -390,21 +374,14 @@ class Model {
                 //console.log('disconnected');
             }
         }
-        
+
     }
 
     async getTables() {
-        this.manageLife();
-        try{
-            if (!this.life.isConnected) {
-                this.life.isConnected = true;
-                await this.connect();
-            }
-        }
-        catch(e){
-            console.log(e);
-        }
-        if(this.dbType == 'sql'){
+        await this.manageLife();
+        await this.connect();
+
+        if (this.dbType == 'sql') {
             let query = `SELECT table_name as 'table' FROM information_schema.tables WHERE table_schema = "${this.config.database}"`;
 
             try {
@@ -419,32 +396,25 @@ class Model {
                 //console.log('disconnected');
             }
         }
-        if(this.dbType == 'nosql'){
-            try{
-                const res = await this.connection.listCollections({},{nameOnly:true}).toArray();
+        if (this.dbType == 'nosql') {
+            try {
+                const res = await this.connection.listCollections({}, { nameOnly: true }).toArray();
                 return res;
             }
-            catch(e){
+            catch (e) {
                 return null;
             }
-            finally{
+            finally {
                 //this.disconnect();
             }
         }
     }
 
     async getNumOfRows(table) {
-        this.manageLife();
-        try{
-            if (!this.life.isConnected) {
-                this.life.isConnected = true;
-                await this.connect();
-            }
-        }
-        catch(e){
-            console.log(e);
-        }
-        if(this.dbType == 'sql'){
+        await this.manageLife();
+        await this.connect();
+
+        if (this.dbType == 'sql') {
             let query = `Select count(*) as "count" from ${table}`;
 
             try {
@@ -459,7 +429,7 @@ class Model {
                 //console.log('disconnected');
             }
         }
-        else if(this.dbType == 'nosql'){
+        else if (this.dbType == 'nosql') {
             try {
                 await this.manageCollections(table);
                 const res = await this.collections[table].estimatedDocumentCount();
@@ -488,24 +458,29 @@ class Model {
         }
     }
 
-    async insert(table,object){
-        this.manageLife();
-        try{
-            if (!this.life.isConnected) {
-                this.life.isConnected = true;
-                await this.connect();
+    async insert(table, object) {
+        await this.manageLife();
+        await this.connect();
+
+        if (this.dbType == 'sql') {
+            //code to sequalize object and turn it into valid query 
+            try {
+                return true;
+            }
+            // eslint-disable-next-line no-unreachable
+            catch (err) {
+                console.log(err);
+                return false;
+            }
+            finally {
+                //this.disconnect(); // To Release Connection
+                //console.log('disconnected');
             }
         }
-        catch(e){
-            console.log(e);
-        }
-        if(this.dbType == 'sql'){
-
-        }
-        else if(this.dbType == 'nosql'){
+        else if (this.dbType == 'nosql') {
             try {
                 await this.manageCollections(table);
-                this.collections[table].insertOne(object);
+                await this.collections[table].insertOne(object);
                 return true;
             }
             catch (err) {
@@ -520,78 +495,96 @@ class Model {
 
     }
 
-    async remove(table,col,ref,one){
-        this.manageLife();
-        try{
-            if (!this.life.isConnected) {
-                this.life.isConnected = true;
-                await this.connect();
-            }
-        }
-        catch(e){
-            console.log(e);
-        }
+    async remove(table, col, ref, one) {
+        await this.manageLife();
+        await this.connect();
+
         let filter = {};
         filter[col] = ref;
         one = one ? true : false;
-        try {
-            await this.manageCollections(table);
-            
-            if(one){
-                let res = await this.collections[table].deleteOne(filter);
-                return res;
+        if (this.dbType == 'sql') {
+            //code to remove item from db
+            try {
+                return true;
             }
-            else{
-                let res = await this.collections[table].deleteMany(filter);
-                return res;
+            // eslint-disable-next-line no-unreachable
+            catch (err) {
+                console.log(err);
+                return false;
+            }
+            finally {
+                //this.disconnect(); // To Release Connection
+                //console.log('disconnected');
             }
         }
-        catch (err) {
-            console.log(err);
-            return null;
-        }
-        finally {
-            //this.disconnect(); // To Release Connection
-            //console.log('disconnected');
+        else {
+            try {
+                await this.manageCollections(table);
+
+                if (one) {
+                    let res = await this.collections[table].deleteOne(filter);
+                    return res;
+                }
+                else {
+                    let res = await this.collections[table].deleteMany(filter);
+                    return res;
+                }
+            }
+            catch (err) {
+                console.log(err);
+                return null;
+            }
+            finally {
+                //this.disconnect(); // To Release Connection
+                //console.log('disconnected');
+            }
         }
     }
 
-    async manageCollections(table){
-        try{
-            if(!this.collections[table]){
+    async manageCollections(table) {
+        try {
+            if (!this.collections[table]) {
                 let collection = await this.connection.collection(table);
                 this.collections[table] = collection;
             }
             return true;
         }
-        catch(e){
+        catch (e) {
             console.error(e);
             return false
         }
     }
 
-    disconnect(){
-        if(this.dbType == 'sql'){
-            try{
-                console.info('disconnected from ',this.dbName);
+    async disconnect() {
+        this.life.isConnected = false;
+        if (this.dbType == 'sql') {
+            try {
+                console.info('disconnected from ', this.dbName);
                 this.db.close();
+                this.eventHandler.hasDied = true;
+                this.eventHandler.event.emit('died');
             }
-            catch(e){
-                
+            catch (e) {
+                console.log('could not disconnect');
             }
         }
-        else if(this.dbType == 'nosql'){
-            try{
-                console.info('disconnected from ',this.dbName);
-                this.client.close();
+        else if (this.dbType == 'nosql') {
+            try {
+                console.info('disconnected from ', this.dbName);
+                await this.client.close();
+                this.connection;
+                this.client = null;
+                this.collections = {};
+                this.eventHandler.hasDied = true;
+                this.eventHandler.event.emit('died');
             }
-            catch(e){
-                
+            catch (e) {
+                console.log('could not disconnect');
             }
         }
     }
 
-};
+}
 
 
 module.exports = Model;

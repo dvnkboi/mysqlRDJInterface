@@ -8,7 +8,7 @@ let models = {
   },
   addModel(db) {
     let dbType = this.lookUpTable[db];
-    model = new Model(`${db}_-_${dbType}`);
+    let model = new Model(`${db}_-_${dbType}`);
     this[db] = model;
     this[db].eventHandler.event.on('died', () => {
       delete this[db];

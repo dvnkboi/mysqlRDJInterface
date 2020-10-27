@@ -1,5 +1,6 @@
 const utils = require('./utils');
 const moment = require('moment-timezone');
+const MBA = require('./MBA');
 
 class RdjManager {
 
@@ -7,24 +8,35 @@ class RdjManager {
         this.controller = controller;
         this.songPreload = null;
         this.watchers;
+        this.API = {
+            mba: new MBA(),
+            buffer: {},
+            timeout: null,
+            flushAfter: 5000,
+            rowsToFlush: 0
+        }
     }
 
-    async initWatchers(){
+    async initWatchers() {
         let proxy = this;
         this.watchers = {
-            async add(table){
-                if(table == 'history'){
+            async add(table) {
+                if (table == 'history') {
                     this.watchedSchemas.push('radiodj2020.history.*');
                     await proxy.watchHistory();
                 }
-                else{
+                else if (table == 'songs') {
+                    this.watchedSchemas.push(`radiodj2020.songs.*`);
+                    await proxy.watchSongs();
+                }
+                else {
                     this.watchedSchemas.push(`radiodj2020.${table}.*`);
                     await proxy.generalWatcher(table);
                 }
             },
-            async removeAll(){
-                proxy.controller.eventHandler.removeAllListeners(); 
-                for(const schema of proxy.watchers.watchedSchemas){
+            async removeAll() {
+                proxy.controller.eventHandler.removeAllListeners();
+                for (const schema of proxy.watchers.watchedSchemas) {
                     await proxy.controller.unwatch(schema);
                 }
                 console.log('all events removed');
@@ -82,12 +94,12 @@ class RdjManager {
                 }
             }
             else {
-                try{
+                try {
                     result.response = await proxy.controller.getRows(proxy.config);
                     result.found = result.response.found;
                     delete result.response['found'];
                 }
-                catch(e){
+                catch (e) {
                     console.error('result has no attribute found');
                     return;
                 }
@@ -106,19 +118,19 @@ class RdjManager {
                     result.response = [];
                 }
                 else {
-                    result.response = result.response.filter(function (value, index, arr) {
+                    result.response = result.response.filter(function (value, index) {
                         return (index >= config.page * config.limit && index < config.page * config.limit + parseInt(config.limit));
                     });
                 }
             }
 
         }
-        try{
+        try {
             if (!result.response.length < 1 || utils.isEmpty(result.response)) {
                 result.response.resultSet = null;
             }
         }
-        catch(e){
+        catch (e) {
             console.error('result has no length');
             return;
         }
@@ -131,7 +143,7 @@ class RdjManager {
     async watchHistory() {
         await this.controller.watch('radiodj2020.history.*');
         let eta = await this.timeToNext();
-        console.log(utils.formatedTime(eta/1000),'to next song');
+        console.log(utils.formatedTime(eta / 1000), 'to next song');
 
         if (this.songPreload != null) {
             clearTimeout(this.songPreload);
@@ -144,7 +156,7 @@ class RdjManager {
 
         return this.controller.eventHandler.on('history', async (event) => {
             eta = await this.timeToNext();
-            console.log(event.type, event.table, utils.formatedTime(eta/1000),'song changed');
+            console.log(event.type, event.table, utils.formatedTime(eta / 1000), 'song changed');
 
             if (this.songPreload != null) {
                 clearTimeout(this.songPreload);
@@ -156,21 +168,41 @@ class RdjManager {
             }, eta - 10000);
 
         });
-        
+
     }
 
-    async generalWatcher(table){
-        await this.controller.watch(`radiodj2020.${table}.*`);
-
-        return this.controller.eventHandler.on(table, (event) => {
+    async watchSongs() {
+        let proxy = this;
+        await this.controller.watch(`radiodj2020.songs.*`);
+        this.controller.eventHandler.on('songs', async (event) => {
             if (event.type == 'INSERT') {
-                console.log('add event ',event.table,event.affectedColumns ,event.affectedRows[0].after.ID);
+                console.log('song added ', `${event.affectedRows[0].after.artist} - ${event.affectedRows[0].after.title} (${event.affectedRows[0].after.album})`);
+                try{
+                    proxy.API.buffer[event.affectedRows[0].after.artist].push(event.affectedRows[0].after.album);
+                    proxy.API.rowsToFlush++;
+                }
+                catch(e){
+                    proxy.API.buffer[event.affectedRows[0].after.artist] = [];
+                    proxy.API.buffer[event.affectedRows[0].after.artist.trim()].push(event.affectedRows[0].after.album);
+                    proxy.API.rowsToFlush++;
+                }
+
+                if (proxy.API.timeout != null) {
+                    clearTimeout(proxy.API.timeout);
+                    proxy.API.timeout = null;
+                }
+                proxy.API.timeout = setTimeout(async () => {
+                    console.log('flushing ',proxy.API.rowsToFlush);
+                    await proxy.API.mba.getMultipleReleases(proxy.API.buffer);
+                    proxy.API.buffer = {};
+                    proxy.API.rowsToFlush = 0;
+                }, proxy.API.flushAfter);
             }
             else if (event.type == 'DELETE') {
-                console.log('remove event ',event.table,event.affectedColumns ,event.affectedRows[0].before.ID);
+                console.log('remove event ', event.table, event.affectedColumns, event.affectedRows[0].before.ID);
             }
             else if (event.type == 'UPDATE') {
-                console.log('update event ',event.table,event.affectedColumns ,event.affectedRows[0].before.ID);
+                console.log('song updated ', event.table, event.affectedColumns, event.affectedRows[0].before.ID);
             }
             else {
                 console.error('unhandled event ', event.type);
@@ -178,19 +210,38 @@ class RdjManager {
         });
     }
 
-    async getNextSong(){
-        let result = await this.controller.getOne('queuelist','ID',1);
+    async generalWatcher(table) {
+        await this.controller.watch(`radiodj2020.${table}.*`);
+
+        return this.controller.eventHandler.on(table, (event) => {
+            if (event.type == 'INSERT') {
+                console.log('add event ', event.table, event.affectedColumns, event.affectedRows[0].after.ID);
+            }
+            else if (event.type == 'DELETE') {
+                console.log('remove event ', event.table, event.affectedColumns, event.affectedRows[0].before.ID);
+            }
+            else if (event.type == 'UPDATE') {
+                console.log('update event ', event.table, event.affectedColumns, event.affectedRows[0].before.ID);
+            }
+            else {
+                console.error('unhandled event ', event.type);
+            }
+        });
+    }
+
+    async getNextSong() {
+        let result = await this.controller.getOne('queuelist', 'ID', 1);
         return result;
     }
 
-    async timeToNext(){
+    async timeToNext() {
         let nextSong = await this.getNextSong();
         nextSong.ETA = moment(nextSong.ETA).local().valueOf();
         let eta = nextSong.ETA - moment().local().valueOf();
         return eta;
     }
 
-    setController(controller){
+    setController(controller) {
         this.controller = controller;
     }
 

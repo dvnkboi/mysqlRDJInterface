@@ -55,7 +55,7 @@ class MBA {
     async wait() {
         if (this.throttle.active) {
             await utils.wait(this.throttle.wait);
-            console.log('waited', this.throttle.wait);
+            //console.log('waited', this.throttle.wait);
             if (!this.throttle.hardThrottle) {
                 this.throttle.active = false;
             }
@@ -77,7 +77,7 @@ class MBA {
 
         releaseExistCheck = await this.model.getMatching('releases', 'desc', desc, true) || [];
         if (releaseExistCheck.length >= 1) {
-            console.log('release already in database');
+            //console.log('release already in database');
             return null;
         }
 
@@ -117,13 +117,13 @@ class MBA {
                     });
                 }
                 else{
-                    console.log(artistName,'already in database');
+                    //console.log(artistName,'already in database');
                 }
             }
             for (let release of releaseObj['release-groups']) {
                 for (let art of release['artist-credit']) {
                     if(!art.name){
-                        console.log('switching name');
+                        //console.log('switching name');
                         art.name = art.artist.name;
                     }
                     art.name = art.name.split(' ').join('_').toLowerCase().trim();
@@ -133,7 +133,7 @@ class MBA {
                         await this.model.insert('artists',art);
                     }
                     else{
-                        console.log(art.name,'already in database');
+                        //console.log(art.name,'already in database');
                     }
                 }
             }

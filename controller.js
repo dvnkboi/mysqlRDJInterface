@@ -21,11 +21,7 @@ class Controller {
     async getRows(config) {
 
         if (!this.allowed) {
-            this.res.status(403);
-            this.res.json({
-                status: this.res.statusCode,
-                error: 'invalid api key'
-            });
+            this.sendError(403,'invalid api key');
             return;
         }
 
@@ -70,11 +66,7 @@ class Controller {
                             }
                         }
                         else {
-                            this.res.status(400);
-                            this.res.json({
-                                status: this.res.statusCode,
-                                error: 'incomplete request'
-                            });
+                            this.sendError(400,'incomplete request');
                             return;
                         }
                     }
@@ -91,39 +83,35 @@ class Controller {
             }
             else if (config.action === 'update') {
                 result.job = 'UPDATE';
-                this.res.status(500);
-                this.res.json({
-                    status: this.res.statusCode,
-                    error: 'missing implementation'
-                });
+                this.sendError(500,'missing implementation');
             }
             else if (config.action === 'delete') {
                 result.job = 'DELETE';
-                this.res.status(500);
-                this.res.json({
-                    status: this.res.statusCode,
-                    error: 'missing implementation'
-                });
+                this.sendError(500,'missing implementation');
             }
             else {
-                this.res.status(400);
-                this.res.json({
-                    status: this.res.statusCode,
-                    error: 'invalid action'
-                });
+                this.sendError(400,'invalid action');
                 return;
             }
             return result;
         }
         catch (err) {
             console.error(err);
-            this.res.status(500);
-            this.res.json({
-                status: this.res.statusCode,
-                error: 'unhandled exception'
-            });
+            this.sendError(500,'unhandled exception');
             return;
         }
+    }
+
+    sendError(status,msg){
+        this.res.status(status);
+        this.res.json({
+            status: this.res.statusCode,
+            error: msg
+        });
+    }
+
+    sendJSON(res){
+        this.res.json(res);
     }
 
     async processRequest(config) {
@@ -142,26 +130,7 @@ class Controller {
             delete result.found;
         }
         result.timeTaken = Date.now() - processTime + 'ms';
-        this.res.json(result);
-    }
-
-    async processRequestJSON(config) {
-        let processTime = Date.now();
-        let result = {};
-        result.reqDate = new Date().toJSON();
-
-        result.caller = this.getCaller();
-
-        result.response = await this.getJSON(config);
-
-        if (result.numOfRows < 1) {
-            result.resultSet = null;
-        }
-        if(result.found){
-            delete result.found;
-        }
-        result.timeTaken = Date.now() - processTime + 'ms';
-        this.res.json(result);
+        this.sendJSON(result);
     }
 
     getCaller() {
@@ -200,6 +169,17 @@ class Controller {
         }
     }
 
+    async getAll(table){
+        if(table){
+            let result = await this.model.getAll(table);
+            //result = result['0'];
+            return result;
+        }
+        else{
+            return null;
+        }
+    }
+
     setModel(model){
         this.model = model;
     }
@@ -212,137 +192,6 @@ class Controller {
         this.req = req;
     }
 
-    async getJSON(config){
-        if (!this.allowed) {
-            this.res.status(403);
-            this.res.json({
-                status: this.res.statusCode,
-                error: 'invalid api key'
-            });
-            return;
-        }
-
-        //handling pagination and sorting
-        if (config.limit) {
-            this.model.limit = config.limit;
-        }
-        else {
-            this.model.limit = null;
-        }
-        if (config.page) {
-            this.model.offset = parseInt(config.page * config.limit);
-        }
-        else {
-            this.model.offset = 0;
-        }
-        if (config.sortDir && config.sortRef) {
-            this.model.sortRef = config.sortRef;
-            this.model.sortDir = config.sortDir;
-        }
-        else {
-            this.model.sortRef = null;
-            this.model.sortDir = null;
-        }
-
-        let result = {};
-        try {
-            if (config.action === 'get') {
-                result.job = 'GET';
-                result.query = config.ref;
-                if (config.table) {
-                    if (config.col) {
-                        if (config.ref) {
-
-                            if (config.mod1 == "true" || config.mod1 == "false") {
-                                result.resultSet = await this.model.getJSON(config.table, config.col, config.ref, config.mod1);
-                                try{
-                                    result.numOfRows = result.resultSet.length;
-                                }
-                                catch(e){
-                                    result.resultSet = [];
-                                    result.numOfRows = 0;
-                                }
-                                
-                            }
-                            else {
-                                result.resultSet = await this.model.getJSON(config.table, config.col, config.ref, false);
-                                try{
-                                    result.numOfRows = result.resultSet.length;
-                                }
-                                catch(e){
-                                    result.resultSet = [];
-                                    result.numOfRows = 0;
-                                }
-                            }
-                        }
-                        else {
-                            this.res.status(400);
-                            this.res.json({
-                                status: this.res.statusCode,
-                                error: 'incomplete request'
-                            });
-                            return;
-                        }
-                    }
-                    else {
-                        result.resultSet = await this.model.getAllJSON(config.table);
-                        result.found = await this.model.getNumOfRows(config.table);
-                        try{
-                            result.numOfRows = result.resultSet.length;
-                        }
-                        catch(e){
-                            result.resultSet = [];
-                            result.numOfRows = 0;
-                        }
-                    }
-                }
-                else {
-                    result.resultSet = await this.model.getTables();
-                    try{
-                        result.numOfRows = result.resultSet.length;
-                    }
-                    catch(e){
-                        result.resultSet = [];
-                        result.numOfRows = 0;
-                    }
-                }
-            }
-            else if (config.action === 'update') {
-                result.job = 'UPDATE';
-                this.res.status(500);
-                this.res.json({
-                    status: this.res.statusCode,
-                    error: 'missing implementation'
-                });
-            }
-            else if (config.action === 'delete') {
-                result.job = 'DELETE';
-                this.res.status(500);
-                this.res.json({
-                    status: this.res.statusCode,
-                    error: 'missing implementation'
-                });
-            }
-            else {
-                this.res.status(400);
-                this.res.json({
-                    status: this.res.statusCode,
-                    error: 'invalid action'
-                });
-                return;
-            }
-            return result;
-        }
-        catch (err) {
-            console.error(err);
-            this.res.status(400);
-            this.res.json({
-                status: this.res.statusCode,
-                error: 'invalid request'
-            });
-            return;
-        }
-    }
 }
 
 

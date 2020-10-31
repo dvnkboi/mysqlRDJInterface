@@ -21,7 +21,7 @@ class Controller {
     async getRows(config) {
 
         if (!this.allowed) {
-            this.sendError(403,'invalid api key');
+            this.sendError(403, 'invalid api key');
             return;
         }
 
@@ -66,7 +66,7 @@ class Controller {
                             }
                         }
                         else {
-                            this.sendError(400,'incomplete request');
+                            this.sendError(400, 'incomplete request');
                             return;
                         }
                     }
@@ -83,35 +83,45 @@ class Controller {
             }
             else if (config.action === 'update') {
                 result.job = 'UPDATE';
-                this.sendError(500,'missing implementation');
+                this.sendError(500, 'missing implementation');
             }
             else if (config.action === 'delete') {
                 result.job = 'DELETE';
-                this.sendError(500,'missing implementation');
+                this.sendError(500, 'missing implementation');
             }
             else {
-                this.sendError(400,'invalid action');
+                this.sendError(400, 'invalid action');
                 return;
             }
             return result;
         }
         catch (err) {
             console.error(err);
-            this.sendError(500,'unhandled exception');
+            this.sendError(500, 'unhandled exception');
             return;
         }
     }
 
-    sendError(status,msg){
-        this.res.status(status);
-        this.res.json({
-            status: this.res.statusCode,
-            error: msg
-        });
+    sendError(status, msg) {
+        try {
+            this.res.status(status);
+            this.res.json({
+                status: this.res.statusCode,
+                error: msg
+            });
+        }
+        catch (e) {
+
+        }
     }
 
-    sendJSON(res){
-        this.res.json(res);
+    sendJSON(res) {
+        try {
+            this.res.json(res);
+        }
+        catch (e) {
+
+        }
     }
 
     async processRequest(config) {
@@ -126,7 +136,7 @@ class Controller {
         if (result.numOfRows < 1) {
             result.resultSet = null;
         }
-        if(result.found){
+        if (result.found) {
             delete result.found;
         }
         result.timeTaken = Date.now() - processTime + 'ms';
@@ -149,7 +159,7 @@ class Controller {
         }
     }
 
-    async unwatch(schema){
+    async unwatch(schema) {
         try {
             await this.model.unwatch(schema);
         }
@@ -158,37 +168,37 @@ class Controller {
         }
     }
 
-    async getOne(table,idCol,id){
-        if(table && idCol && id){
-            let result = await this.model.getMatching(table,idCol,id,true);
+    async getOne(table, idCol, id) {
+        if (table && idCol && id) {
+            let result = await this.model.getMatching(table, idCol, id, true);
             result = result['0'];
             return result;
         }
-        else{
+        else {
             return null;
         }
     }
 
-    async getAll(table){
-        if(table){
+    async getAll(table) {
+        if (table) {
             let result = await this.model.getAll(table);
             //result = result['0'];
             return result;
         }
-        else{
+        else {
             return null;
         }
     }
 
-    setModel(model){
+    setModel(model) {
         this.model = model;
     }
 
-    setRes(res){
+    setRes(res) {
         this.res = res;
     }
 
-    setReq(req){
+    setReq(req) {
         this.req = req;
     }
 

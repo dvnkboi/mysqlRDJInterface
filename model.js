@@ -31,13 +31,11 @@ class Model {
                 console.error('error creating model with given config');
             }
         }
-        else if(this.dbType == "nosql"){
-            this.connectionString = `mongodb://admin:List2kat@localhost:27017/?authSource=admin&replicaSet=rsMain&readPreference=primary&ssl=false`;
+        else if (this.dbType == "nosql") {
+            this.connectionString = `mongodb://admin:List2kat@localhost:27017/?authSource=admin&replicaSet=rsMain`;
             this.connectionParams = {
                 useNewUrlParser: true,
-                useUnifiedTopology: true,
-                keepAlive: 1,
-                connectTimeoutMS: 30000
+                useUnifiedTopology: true
             };
             this.connection;
             this.client = null;
@@ -63,7 +61,7 @@ class Model {
             allow: true,
             throttle: false,
             event: new EventEmitter(),
-            hasDied:false
+            hasDied: false
         };
     }
 
@@ -366,7 +364,7 @@ class Model {
                 return res;
             }
             catch (err) {
-                console.error(err);
+                console.error('error in get all nosql');
                 return null;
             }
             finally {
@@ -436,7 +434,7 @@ class Model {
                 return res;
             }
             catch (err) {
-                console.log(err);
+                console.log('error getting number of rows for nosql', table);
                 return 0;
             }
             finally {
@@ -550,7 +548,7 @@ class Model {
             return true;
         }
         catch (e) {
-            console.error(e);
+            console.error('error managing collection', table);
             return false
         }
     }
@@ -584,9 +582,39 @@ class Model {
         }
     }
 
-    setDb(dbName,dbType){
+    setDb(dbName, dbType) {
         this.dbName = dbName;
         this.dbType = dbType;
+        if (this.dbType == 'sql') {
+            //mysql config const
+            this.config = { // connection to db with config
+                host: 'localhost',
+                user: 'root',
+                password: '8576',
+                database: this.dbName,
+                connectionLimit: 10,
+                waitForConnections: true,
+                queueLimit: 0
+            };
+            try {
+                this.pool = mysql.createPool(this.config);
+                this.db = null;
+                this.connection = null;
+            }
+            catch (err) {
+                console.error('error creating model with given config');
+            }
+        }
+        else if (this.dbType == 'nosql') {
+            this.connectionString = `mongodb://admin:List2kat@localhost:27017/?authSource=admin&replicaSet=rsMain`;
+            this.connectionParams = {
+                useNewUrlParser: true,
+                useUnifiedTopology: true
+            };
+            this.connection = null;
+            this.client = null;
+            this.collections = {};
+        }
     }
 
 }

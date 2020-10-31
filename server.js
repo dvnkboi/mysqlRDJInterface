@@ -2,11 +2,11 @@ const express = require('express');
 const Controller = require('./controller.js');
 const Model = require('./model.js');
 const RdjManager = require('./rdjManager.js');
-const dbTypes = require('./dbTypes.json');
+const dbType = require('./dbTypes.json');
 
 //globals
 const app = express();
-let model,processor,rdj;
+let model, processor, rdj;
 
 app.get('/api', function (req, res) {
   const config = {
@@ -23,19 +23,16 @@ app.get('/api', function (req, res) {
     sortDir: req.query.sortdir
   };
 
-
   processor.setReq(req);
   processor.setRes(res);
 
-
   if (model.dbName != config.db) {
-    model.setDb(config.db,dbTypes[config.db]);
+    model.setDb(config.db, dbType[config.db]);
   }
 
   (async () => {
     await processor.authenticate(config.apiKey);
     await processor.processRequest(config);
-    //res.json(res);
   })();
 
   //let processor = new Controller();
@@ -61,19 +58,14 @@ app.get('/v2', function (req, res) {
   processor.setRes(res);
 
   if (model.dbName != config.db) {
-    model.setDb(config.db,dbTypes[config.db]);
+    model.setDb(config.db, dbType[config.db]);
   }
 
   (async () => {
     await rdj.processRequest(config);
-
   })();
 
-  //let processor = new Controller();
-  // controller.processRequest();
 });
-
-
 
 model = new Model('radiodj2020_-_sql');
 processor = new Controller(model, null, null);
@@ -90,6 +82,4 @@ let hiddenRdj = new RdjManager(hiddenProcessor);
   await hiddenRdj.initWatchers();
   hiddenRdj.watchers.add('history');
   hiddenRdj.watchers.add('songs');
-  //await rdj.watchers.add('queuelist');
-  //rdj.watchers.removeAll();
 })();

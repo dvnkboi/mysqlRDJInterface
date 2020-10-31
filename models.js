@@ -10,10 +10,7 @@ let models = {
     let dbType = this.lookUpTable[db];
     let model = new Model(`${db}_-_${dbType}`);
     this[db] = model;
-    this[db].eventHandler.event.on('died', () => {
-      delete this[db];
-    });
-  }
+  },
 }
 
 

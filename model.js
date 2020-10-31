@@ -584,6 +584,11 @@ class Model {
         }
     }
 
+    setDb(dbName,dbType){
+        this.dbName = dbName;
+        this.dbType = dbType;
+    }
+
 }
 
 

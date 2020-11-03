@@ -117,6 +117,7 @@ class Controller {
 
     sendJSON(res) {
         try {
+            this.res.status(200);
             this.res.json(res);
         }
         catch (e) {

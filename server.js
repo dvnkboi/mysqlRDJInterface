@@ -2,7 +2,7 @@ const express = require('express');
 const Controller = require('./controller.js');
 const Model = require('./model.js');
 const RdjManager = require('./rdjManager.js');
-const dbType = require('./dbTypes.json');
+let models = require('./models');
 
 //globals
 const app = express();
@@ -26,8 +26,12 @@ app.get('/api', function (req, res) {
   processor.setReq(req);
   processor.setRes(res);
 
-  if (model.dbName != config.db) {
-    model.setDb(config.db, dbType[config.db]);
+  if(Object.keys(models).includes(config.db)){
+    processor.setModel(models[config.db]);
+  }
+  else{
+    models.addModel(config.db);
+    processor.setModel(models[config.db]);
   }
 
   (async () => {
@@ -57,8 +61,12 @@ app.get('/v2', function (req, res) {
   processor.setReq(req);
   processor.setRes(res);
 
-  if (model.dbName != config.db) {
-    model.setDb(config.db, dbType[config.db]);
+  if(Object.keys(models).includes(config.db)){
+    processor.setModel(models[config.db]);
+  }
+  else{
+    models.addModel(config.db);
+    processor.setModel(models[config.db]);
   }
 
   (async () => {

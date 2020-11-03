@@ -151,16 +151,20 @@ class RdjManager {
     async watchHistory() {
         await this.controller.watch('radiodj2020.history.*');
         let eta = await this.timeToNext();
-        console.log(utils.formatedTime(eta / 1000), 'to next song');
+
+        if(eta > 0){
+            console.log(utils.formatedTime(eta / 1000), 'to next song');
+        }
 
         if (this.songPreload != null) {
             clearTimeout(this.songPreload);
             this.songPreload = null;
         }
-
-        this.songPreload = setTimeout(() => {
-            console.log('start preload');
-        }, eta - 10000);
+        if(eta - 10000 > 0){
+            this.songPreload = setTimeout(() => {
+                console.log('start preload');
+            }, eta - 10000);
+        }
 
         return this.controller.eventHandler.on('history', async (event) => {
             eta = await this.timeToNext();
@@ -171,10 +175,11 @@ class RdjManager {
                 this.songPreload = null;
             }
 
-            this.songPreload = setTimeout(() => {
-                console.log('start preload');
-            }, eta - 10000);
-
+            if(eta - 10000 > 0){
+                this.songPreload = setTimeout(() => {
+                    console.log('start preload');
+                }, eta - 10000);
+            }
         });
 
     }

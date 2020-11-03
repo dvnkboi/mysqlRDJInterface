@@ -583,6 +583,7 @@ class Model {
     }
 
     setDb(dbName, dbType) {
+        this.life.isConnected = false;
         this.dbName = dbName;
         this.dbType = dbType;
         if (this.dbType == 'sql') {

@@ -189,7 +189,7 @@ class RdjManager {
         await this.controller.watch(`radiodj2020.songs.*`);
         this.controller.eventHandler.on('songs', async (event) => {
             if (event.type == 'INSERT') {
-                //console.log('song added ', `${event.affectedRows[0].after.artist} - ${event.affectedRows[0].after.title} (${event.affectedRows[0].after.album})`);
+                console.log('song added ', `${event.affectedRows[0].after.artist} - ${event.affectedRows[0].after.title} (${event.affectedRows[0].after.album})`);
                 try{
                     proxy.API.buffer[event.affectedRows[0].after.artist].push(event.affectedRows[0].after.album);
                     proxy.API.rowsToFlush++;

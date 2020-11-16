@@ -19,7 +19,7 @@ class RdjManager {
             retriesRemaining:5,
             status:'initialized',
             retryTimeout:null
-        }
+        };
     }
 
     async initWatchers() {
@@ -113,6 +113,9 @@ class RdjManager {
         else if(config.action == 'update_meta'){
             result.response = await this.updateMeta();
         }
+        else if(config.action == 'update_artwork'){
+            result.response = await this.updateArtwork();
+        }
 
 
         if (Array.isArray(result.response)) {
@@ -144,8 +147,10 @@ class RdjManager {
         }
 
         result.timeTaken = Date.now() - processTime + 'ms';
-        this.controller.res.json(result);
 
+        if(!this.controller.res.headersSent){
+            this.controller.res.json(result);
+        }
     }
 
     async watchHistory() {
@@ -244,7 +249,7 @@ class RdjManager {
             if(this.API.retriesRemaining > 0 && this.API.status != "server busy"){
                 this.API.retriesRemaining--;
                 this.API.status = 'retrying';
-                this.API.retryTimeout = setTimeout(() => this.flushBufferToMeta(),5000);
+                this.API.retryTimeout = setTimeout(async () => this.flushBufferToMeta(),5000);
             }
             else{
                 if (this.API.retryTimeout != null) {
@@ -293,6 +298,54 @@ class RdjManager {
             action: 'update meta',
             songsProcessed: songs.length,
             status:this.API.status
+        };
+    }
+
+    async updateArtwork(){
+        let res;
+        if(this.API.busy){
+            if(this.API.retriesRemaining > 0 && this.API.status != "server busy"){
+                this.API.retriesRemaining--;
+                this.API.status = 'retrying';
+                this.API.retryTimeout = setTimeout(async () => this.updateArtwork(),5000);
+            }
+            else{
+                if (this.API.retryTimeout != null) {
+                    clearTimeout(this.API.retryTimeout);
+                    this.API.retryTimeout = null;
+                }
+                this.API.status = 'server busy';
+                console.log('server busy try again later');
+            }
+        }
+        else{
+            this.API.busy = true;
+            if(!this.controller.res.headersSent){
+                this.controller.res.json({
+                    action: 'update artwork',
+                    songsProcessed: 'all',
+                    status:'job ongoing'
+                });
+            }
+            res = await this.API.mba.getAllReleaseGroupImgs();
+            console.log('flushing', res);
+            if (this.API.retryTimeout != null) {
+                clearTimeout(this.API.retryTimeout);
+                this.API.retryTimeout = null;
+            }
+            this.API.buffer = {};
+            this.API.rowsToFlush = 0;
+            this.API.retriesRemaining = this.API.retries;
+            this.API.status = 'job completed';
+            setTimeout(() => {
+                this.API.busy = false;
+            },5000);
+            console.log('job done');
+        }
+        return {
+            action: 'update artwork',
+            songsProcessed: res,
+            status:'job done'
         };
     }
 

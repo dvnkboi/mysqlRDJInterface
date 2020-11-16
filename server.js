@@ -38,9 +38,7 @@ app.get('/api', function (req, res) {
     await processor.authenticate(config.apiKey);
     await processor.processRequest(config);
   })();
-
-  //let processor = new Controller();
-  // controller.processRequest();
+  
 });
 
 app.get('/v2', function (req, res) {
@@ -85,6 +83,7 @@ app.listen(3000);
 let hiddenModel = new Model('radiodj2020_-_sql');
 let hiddenProcessor = new Controller(hiddenModel, null, null);
 let hiddenRdj = new RdjManager(hiddenProcessor);
+
 
 (async () => {
   await hiddenRdj.initWatchers();

@@ -59,7 +59,7 @@ class Model {
         this.eventHandler = {
             timeout: 0,
             allow: true,
-            throttle: false,
+            throttle: true,
             event: new EventEmitter(),
             hasDied: false
         };
@@ -164,14 +164,12 @@ class Model {
                     }
                     else {
                         proxy.eventHandler.allow = true;
-                        proxy.eventHandler.event.emit(event.table, event);
                     }
                 },
             });
         }
         else if (this.dbType == 'nosql') {
             try {
-                console.log('tryin dawg');
                 if (!schema.split('.')[1]) {
                     throw new Error('pass');
                 }
@@ -187,9 +185,8 @@ class Model {
                     if (proxy.eventHandler.throttle) {
                         if (proxy.eventHandler.allow) {
                             proxy.eventHandler.allow = false;
-
+                            console.log(next);
                             proxy.eventHandler.event.emit(schema, next);
-                            console.log('changed', next);
                             setTimeout(() => {
                                 proxy.eventHandler.allow = true;
                             }, proxy.eventHandler.timeout);
@@ -197,12 +194,10 @@ class Model {
                     }
                     else {
                         proxy.eventHandler.allow = true;
-                        proxy.eventHandler.event.emit(schema, next);
                     }
                 });
             }
         }
-
     }
 
     async unwatch(schema) {

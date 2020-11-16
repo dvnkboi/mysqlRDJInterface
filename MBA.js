@@ -21,9 +21,8 @@ class MBA {
             "Accept": "application/json"
         }
         this.getJSON = bent('GET', 'json', this.headers);
-        this.getBuffer = bent('GET');
         this.throttle = {
-            wait: 100,
+            wait: 500,
             active: false,
             itteration: 0,
             itterationLife: 5000,
@@ -37,7 +36,7 @@ class MBA {
     itterate() {
         let proxy = this;
         this.throttle.itteration++;
-        this.throttle.wait = utils.map(Math.min(this.throttle.itteration, this.throttle.maxItterations), 0, this.throttle.maxItterations, 100, 1500);
+        this.throttle.wait = utils.map(Math.min(this.throttle.itteration, this.throttle.maxItterations), 0, this.throttle.maxItterations, 500, 1500);
         this.throttle.hardThrottle = this.throttle.itteration > this.throttle.maxItterations ? true : false;
         if (this.throttle.timeout != null) {
             clearTimeout(this.throttle.timeout);
@@ -161,35 +160,99 @@ class MBA {
         }
     }
 
-    // async downloadArtistImg(artist) {
-    //     let proxy = this;
-    //     let files;
-    //     try {
-    //         files = await fs.readdir(`./images/artists`);
-    //         var img = files.find(img => {
-    //             return img.includes(artist.toLowerCase());
-    //         });
-    //         if (!img) {
-    //             throw new Error('artist image not found');
-    //         }
-    //     }
-    //     catch (e) {
-    //         //let res = await this.getArtist(artist, 1, 0);
-    //         //let artistName = res.artists.items[0].name;
+    async getReleaseGroupImgByID(releaseID) {
+        let url = encodeURI(`https://coverartarchive.org//release-group/${releaseID}`);
+        let res;
+        try {
+            res = await this.getJSON(url);
+            return res;
+        }
+        catch (redirect1) {
+            if(redirect1.statusCode == 307){
+                try{
+                    res = await this.getJSON(redirect1.headers.location);
+                    return res;
+                }
+                catch(redirect2){
+                    if(redirect2.statusCode == 302){
+                        res = await this.getJSON(redirect2.headers.location);
+                        let existanceCheck = await this.model.getMatching('images','release',res.release);
+                        if(existanceCheck.length < 1){
+                            console.log('release image not in db');
+                            await this.model.insert('images',res);
+                        }
+                        else{
+                            console.info('release',releaseID,'already in db');
+                        }
+                        return res;
+                    }
+                    else{
+                        if(redirect2.statusCode == 404){
+                            console.error('not found at redirect 2');
+                            return false;
+                        }
+                        else{
+                            console.error('failed at redirect 2',redirect2);
+                            return false;
+                        }
+                    }
+                }
+            }
+            else{
+                if(redirect1.statusCode == 404){
+                    console.error('not found at redirect 1');
+                    return false;
+                }
+                else{
+                    console.error('failed at redirect 1',redirect1);
+                    return false;
+                }
+            }
+        }
+    }
 
-    //     }
-    // }
+    async getReleaseGroupImgByDesc(releaseDesc){
+        let releaseGroupObj = await this.model.getMatching('releases', 'desc', releaseDesc);
+        if (releaseGroupObj.length < 1) {
+            console.log('release not in Database, run updata_meta on the API');
+        }
+        else{
+            if(releaseGroupObj.count < 1){
+                //console.log('empty release group object');
+            }
+            else{
+                for(const releaseGroup of releaseGroupObj['0']['release-groups']){
+                    await this.getReleaseGroupImgByID(releaseGroup.id);
+                }
+            }
+        }
+    }
 
-    // async dlMultArtistImg(artistsToGet) {
-    //     if (Array.isArray(artistsToGet) || typeof artistsToGet == 'string') {
-    //         for (const artist of artistsToGet) {
-    //             await this.downloadArtistImg(artist);
-    //         }
-    //     }
-    //     else {
-    //         console.error(`expected array or string ${typeof artistsToGet} provided`);
-    //     }
-    // }
+    async getAllReleaseGroupImgs(){
+        let allReleaseGroupObj = await this.model.getAll('releases');
+        let success = 0;
+        let total = 0;
+        if (allReleaseGroupObj.length < 1) {
+            console.log('no releases in Database, run updata_meta on the API');
+        }
+        else{
+            for(const releaseGroupObj of allReleaseGroupObj){
+                if(releaseGroupObj.count < 1){
+                    //console.log('empty release group object',releaseGroupObj.desc);
+                }
+                else{
+                    for(const releaseGroup of releaseGroupObj['release-groups']){
+                        success += await this.getReleaseGroupImgByID(releaseGroup.id) ? 1 : 0;
+                        total++;
+                    }
+                }
+            }
+        }
+        return {
+            success,
+            total
+        }
+    }
 
     async authorise() {
         return "null";
@@ -225,36 +288,23 @@ class MBA {
 }
 
 
-// (async () => {
-//     let store = new Model('store_-_nosql');
-//     let artists = await store.getAll('artists');
-//     console.log(artists.length);
-//     await utils.wait(6000);
-//     artists = await store.getAll('artists');
-//     console.log(artists.length);
-//     let musicAPI = new MBA(store);
-//     let artRel = {
-//         'travis scott': 'franchise',
-//         'imagine dragons': 'origins',
-//         // eslint-disable-next-line no-dupe-keys
-//         'imagine dragons': 'smoke + mirrors',
-//         'jaden': 'erys',
-//         'childish gambino': 'miss anthropocene',
-//         'ghostmane': 'lazaretto',
-//         'louis the child': 'Here For Now',
-//         'iamjakehill': 'Better Off Dead',
-//     }
-
-//     await musicAPI.getMultipleReleases(artRel);
-
-// })();
-
-
-
-
-// let model = new Model('store');
-
-// let spoopipoo = new MBA(model);
+(async () => {
+    // let store = new Model('store_-_nosql');
+    // let musicAPI = new MBA(store);
+    // // let artRel = {
+    // //     'travis scott': 'franchise',
+    // //     'imagine dragons': 'origins',
+    // //     // eslint-disable-next-line no-dupe-keys
+    // //     'imagine dragons': 'smoke + mirrors',
+    // //     'jaden': 'erys',
+    // //     'childish gambino': 'miss anthropocene',
+    // //     'ghostmane': 'lazaretto',
+    // //     'louis the child': 'Here For Now',
+    // //     'iamjakehill': 'Better Off Dead',
+    // // }
+    // // await musicAPI.getMultipleReleases(artRel);
+    // await musicAPI.getAllReleaseGroupImgs();
+})();
 
 
 module.exports = MBA;

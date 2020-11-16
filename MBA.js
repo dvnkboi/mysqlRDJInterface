@@ -288,23 +288,23 @@ class MBA {
 }
 
 
-(async () => {
-    // let store = new Model('store_-_nosql');
-    // let musicAPI = new MBA(store);
-    // // let artRel = {
-    // //     'travis scott': 'franchise',
-    // //     'imagine dragons': 'origins',
-    // //     // eslint-disable-next-line no-dupe-keys
-    // //     'imagine dragons': 'smoke + mirrors',
-    // //     'jaden': 'erys',
-    // //     'childish gambino': 'miss anthropocene',
-    // //     'ghostmane': 'lazaretto',
-    // //     'louis the child': 'Here For Now',
-    // //     'iamjakehill': 'Better Off Dead',
-    // // }
-    // // await musicAPI.getMultipleReleases(artRel);
-    // await musicAPI.getAllReleaseGroupImgs();
-})();
+// (async () => {
+//     let store = new Model('store_-_nosql');
+//     let musicAPI = new MBA(store);
+//     let artRel = {
+//         'travis scott': 'franchise',
+//         'imagine dragons': 'origins',
+//         // eslint-disable-next-line no-dupe-keys
+//         'imagine dragons': 'smoke + mirrors',
+//         'jaden': 'erys',
+//         'childish gambino': 'miss anthropocene',
+//         'ghostmane': 'lazaretto',
+//         'louis the child': 'Here For Now',
+//         'iamjakehill': 'Better Off Dead',
+//     }
+//     await musicAPI.getMultipleReleases(artRel);
+//     await musicAPI.getAllReleaseGroupImgs();
+// })();
 
 
 module.exports = MBA;

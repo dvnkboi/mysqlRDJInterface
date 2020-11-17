@@ -537,8 +537,7 @@ class Model {
     async manageCollections(table) {
         try {
             if (!this.collections[table]) {
-                let collection = await this.connection.collection(table);
-                this.collections[table] = collection;
+                this.collections[table] = await this.connection.collection(table);
             }
             return true;
         }

@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 const Model = require('./model');
 var formurlencoded = require('form-urlencoded').default;
 let auth = require('./auth.json');
+const { EventEmitter } = require('events');
 
 class MBA {
     constructor() {
@@ -31,6 +32,11 @@ class MBA {
             timeout: null
         }
         this.model = new Model('store_-_nosql');
+        this.events = {
+            event: new EventEmitter(),
+            current:0,
+            items:0
+        }
     }
 
     itterate() {
@@ -155,12 +161,18 @@ class MBA {
                         delete art[0];
                     }
                     await this.getRelease(art.trim(), release);
+                    this.events.current++;
+                    this.events.event.emit('next',{
+                        current:this.events.current
+                    });
                 }
             }
         }
+        this.events.current = 0;
+        this.events.event.emit('done',this.events.current);
     }
 
-    async getReleaseGroupImgByID(releaseID) {
+    async getReleaseGroupImgByID(releaseID,desc) {
         let url = encodeURI(`https://coverartarchive.org//release-group/${releaseID}`);
         let res;
         try {
@@ -179,6 +191,7 @@ class MBA {
                         let existanceCheck = await this.model.getMatching('images','release',res.release);
                         if(existanceCheck.length < 1){
                             console.log('release image not in db');
+                            res.desc = desc;
                             await this.model.insert('images',res);
                         }
                         else{
@@ -230,28 +243,32 @@ class MBA {
 
     async getAllReleaseGroupImgs(){
         let allReleaseGroupObj = await this.model.getAll('releases');
-        let success = 0;
-        let total = 0;
-        if (allReleaseGroupObj.length < 1) {
+        let total = allReleaseGroupObj.length;
+        if (total < 1) {
             console.log('no releases in Database, run updata_meta on the API');
         }
         else{
             for(const releaseGroupObj of allReleaseGroupObj){
+                this.events.current++;
+                this.events.event.emit('next',{
+                    current:this.events.current,
+                    total
+                });
                 if(releaseGroupObj.count < 1){
                     //console.log('empty release group object',releaseGroupObj.desc);
                 }
                 else{
                     for(const releaseGroup of releaseGroupObj['release-groups']){
-                        success += await this.getReleaseGroupImgByID(releaseGroup.id) ? 1 : 0;
-                        total++;
+                        await this.getReleaseGroupImgByID(releaseGroup.id,releaseGroupObj.desc);
                     }
                 }
             }
         }
-        return {
-            success,
+        this.events.current = 0;
+        this.events.event.emit('done',{
+            current:this.events.current,
             total
-        }
+        });
     }
 
     async authorise() {

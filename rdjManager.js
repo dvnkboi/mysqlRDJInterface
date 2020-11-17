@@ -18,8 +18,16 @@ class RdjManager {
             retries:5,
             retriesRemaining:5,
             status:'initialized',
-            retryTimeout:null
+            retryTimeout:null,
+            action:'none', 
+            current:0,
+            total:0
         };
+        this.API.event= this.API.mba.events.event;
+        this.API.event.on('next',(res) => {
+            this.API.current = res.current;
+            this.API.total = res.total;
+        })
     }
 
     async initWatchers() {
@@ -116,7 +124,9 @@ class RdjManager {
         else if(config.action == 'update_artwork'){
             result.response = await this.updateArtwork();
         }
-
+        else if(config.action == 'get_status'){
+            result.response = await this.getStatus();
+        }
 
         if (Array.isArray(result.response)) {
             result.found = result.response.length;
@@ -249,6 +259,7 @@ class RdjManager {
             if(this.API.retriesRemaining > 0 && this.API.status != "server busy"){
                 this.API.retriesRemaining--;
                 this.API.status = 'retrying';
+                console.log('retrying');
                 this.API.retryTimeout = setTimeout(async () => this.flushBufferToMeta(),5000);
             }
             else{
@@ -263,6 +274,7 @@ class RdjManager {
         else{
             this.API.busy = true;
             console.log('flushing ',this.API.rowsToFlush);
+            this.API.total = this.API.rowsToFlush;
             await this.API.mba.getMultipleReleases(this.API.buffer);
             if (this.API.retryTimeout != null) {
                 clearTimeout(this.API.retryTimeout);
@@ -270,6 +282,7 @@ class RdjManager {
             }
             this.API.buffer = {};
             this.API.rowsToFlush = 0;
+            this.API.total = 0;
             this.API.retriesRemaining = this.API.retries;
             this.API.status = 'job completed';
             setTimeout(() => {
@@ -280,6 +293,15 @@ class RdjManager {
     }
 
     async updateMeta(){
+        this.API.action = 'update metadata';
+        this.API.status = 'started';
+        if(!this.controller.res.headersSent){
+            this.controller.res.json({
+                action: this.API.action,
+                songsProcessed: 'all',
+                status: this.API.status
+            });
+        }
         let songs = await this.controller.getAll('songs');
         this.API.buffer = {};
         let proxy = this;
@@ -295,7 +317,7 @@ class RdjManager {
         }
         await this.flushBufferToMeta();
         return {
-            action: 'update meta',
+            action: this.API.action,
             songsProcessed: songs.length,
             status:this.API.status
         };
@@ -303,10 +325,13 @@ class RdjManager {
 
     async updateArtwork(){
         let res;
+        this.API.action = 'update artwork';
+        this.API.status = 'started';
         if(this.API.busy){
-            if(this.API.retriesRemaining > 0 && this.API.status != "server busy"){
+            if(this.API.retriesRemaining > 5 && this.API.status != "server busy"){
                 this.API.retriesRemaining--;
                 this.API.status = 'retrying';
+                console.log('retrying');
                 this.API.retryTimeout = setTimeout(async () => this.updateArtwork(),5000);
             }
             else{
@@ -316,15 +341,20 @@ class RdjManager {
                 }
                 this.API.status = 'server busy';
                 console.log('server busy try again later');
+                return {
+                    action: this.API.action,
+                    songsProcessed: res,
+                    status:'server busy'
+                };
             }
         }
         else{
             this.API.busy = true;
             if(!this.controller.res.headersSent){
                 this.controller.res.json({
-                    action: 'update artwork',
+                    action: this.API.action,
                     songsProcessed: 'all',
-                    status:'job ongoing'
+                    status: this.API.status
                 });
             }
             res = await this.API.mba.getAllReleaseGroupImgs();
@@ -343,9 +373,18 @@ class RdjManager {
             console.log('job done');
         }
         return {
-            action: 'update artwork',
+            action: this.API.action,
             songsProcessed: res,
             status:'job done'
+        };
+    }
+
+    async getStatus(){
+        return {
+            action: this.API.action,
+            status: this.API.status,
+            current:this.API.current,
+            total: this.API.total
         };
     }
 

@@ -1,3 +1,8 @@
+/* eslint-disable no-process-env */
+
+require('dotenv').config();
+
+
 class Controller {
 
     constructor(model, req, res) {
@@ -5,7 +10,7 @@ class Controller {
         this.req = req;
         this.res = res;
         this.allowed = false;
-        this.api = '9ee4EF1F0AB9f069a285cd0a2F531e06573B19a23C5D14756822ef6b112363Df';
+        this.api = process.env.API_KEY;
         this.eventHandler = model.eventHandler.event;
     }
 

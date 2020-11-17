@@ -12,6 +12,7 @@
   "dependencies": {
     "@rodrigogs/mysql-events": "^0.6.0",
     "bent": "^7.3.12",
+    "dotenv": "^8.2.0",
     "express": "^4.17.1",
     "form-urlencoded": "^4.2.1",
     "moment": "^2.29.1",

@@ -1,3 +1,5 @@
+/* eslint-disable no-process-env */
+
 var mysql = require('mysql');
 const BaseDatabase = require("mysql-async-wrapper").default;
 const utils = require('./utils');
@@ -5,6 +7,7 @@ const MySQLEvents = require('@rodrigogs/mysql-events');
 const { EventEmitter } = require("events");
 const MongoClient = require('mongodb').MongoClient;
 
+require('dotenv').config();
 
 class Model {
 
@@ -14,9 +17,9 @@ class Model {
         if (this.dbType == "sql") {
             //mysql config const
             this.config = { // connection to db with config
-                host: 'localhost',
-                user: 'root',
-                password: '8576',
+                host: process.env.MYSQL_DB_HOST,
+                user: process.env.MYSQL_DB_USER,
+                password: process.env.MYSQL_DB_PASS,
                 database: this.dbName,
                 connectionLimit: 10,
                 waitForConnections: true,
@@ -32,7 +35,7 @@ class Model {
             }
         }
         else if (this.dbType == "nosql") {
-            this.connectionString = `mongodb://admin:List2kat@localhost:27017/?authSource=admin&replicaSet=rsMain`;
+            this.connectionString = process.env.MONGO_CON_STRING;
             this.connectionParams = {
                 useNewUrlParser: true,
                 useUnifiedTopology: true

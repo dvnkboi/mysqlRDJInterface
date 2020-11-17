@@ -1,3 +1,5 @@
+/* eslint-disable no-process-env */
+
 const bent = require('bent');
 const utils = require('./utils');
 const fs = require('fs').promises;
@@ -5,6 +7,7 @@ const Model = require('./model');
 var formurlencoded = require('form-urlencoded').default;
 let auth = require('./auth.json');
 const { EventEmitter } = require('events');
+require('dotenv').config();
 
 class MBA {
     constructor() {
@@ -13,7 +16,7 @@ class MBA {
             {
                 "Content-Type": "application/x-www-form-urlencoded",
                 // eslint-disable-next-line no-undef
-                "Authorization": `Basic ${Buffer.from("68c5c809200b4cdebc288db6053ad852:56f1d98cc0fb4be5ab01030136f4fded").toString('base64')}`
+                "Authorization": `Basic ${Buffer.from(process.env.PUBLIC_MB_KEY + ':' + process.env.PRIVATE_MB_KEY).toString('base64')}`
             }
         );
 
@@ -34,8 +37,7 @@ class MBA {
         this.model = new Model('store_-_nosql');
         this.events = {
             event: new EventEmitter(),
-            current:0,
-            items:0
+            current:0
         }
     }
 

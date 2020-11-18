@@ -8,7 +8,6 @@ var formurlencoded = require('form-urlencoded').default;
 let auth = require('./auth.json');
 const { EventEmitter } = require('events');
 require('dotenv').config();
-let defaultImg = require('./defaultImg.json');
 
 class MBA {
     constructor() {

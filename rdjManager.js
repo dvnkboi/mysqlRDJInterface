@@ -200,7 +200,7 @@ class RdjManager {
             }, eta - 10000);
         }
 
-        return this.controller.eventHandler.on('history', async (event) => {
+        return this.controller.eventHandler.on('history', async () => {
             eta = await this.timeToNext();
             await this.getHistory();
             this.queue.event.emit('song changed',this.queue);

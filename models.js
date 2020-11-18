@@ -8,7 +8,7 @@ let models = {
   },
   addModel(db) {
     let dbType = this.lookUpTable[db];
-    this[db] = new Model(`${db}_-_${dbType}`);
+    this[db] = new Model(`${db}`,`${dbType}`);
   },
 }
 

@@ -11,9 +11,9 @@ require('dotenv').config();
 
 class Model {
 
-    constructor(db) {
-        this.dbName = db.split('_-_')[0];
-        this.dbType = db.split('_-_')[1];
+    constructor(dbName,dbType) {
+        this.dbName = dbName;
+        this.dbType = dbType;
         if (this.dbType == "sql") {
             //mysql config const
             this.config = { // connection to db with config
@@ -586,9 +586,9 @@ class Model {
         if (this.dbType == 'sql') {
             //mysql config const
             this.config = { // connection to db with config
-                host: 'localhost',
-                user: 'root',
-                password: '8576',
+                host: process.env.MYSQL_DB_HOST,
+                user: process.env.MYSQL_DB_USER,
+                password: process.env.MYSQL_DB_PASS,
                 database: this.dbName,
                 connectionLimit: 10,
                 waitForConnections: true,
@@ -604,7 +604,7 @@ class Model {
             }
         }
         else if (this.dbType == 'nosql') {
-            this.connectionString = `mongodb://admin:List2kat@localhost:27017/?authSource=admin&replicaSet=rsMain`;
+            this.connectionString = process.env.MONGO_CON_STRING;
             this.connectionParams = {
                 useNewUrlParser: true,
                 useUnifiedTopology: true

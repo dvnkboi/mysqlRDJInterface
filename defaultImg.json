@@ -1,0 +1,19 @@
+{
+    "images": [{
+        "approved": true,
+        "back": false,
+        "comment": "default aur image",
+        "edit": 0,
+        "front": true,
+        "image": "http://ampupradio.com/images/albums/DEFAULT500.png",
+        "thumbnails": {
+            "250": "http://ampupradio.com/images/albums/DEFAULT250.png",
+            "500": "http://ampupradio.com/images/albums/DEFAULT500.png",
+            "1200": "http://ampupradio.com/images/albums/DEFAULT1200.png",
+            "large": "http://ampupradio.com/images/albums/DEFAULT500.png",
+            "small": "http://ampupradio.com/images/albums/DEFAULT250.png"
+        },
+        "types": ["Default"]
+    }],
+    "release": null
+}

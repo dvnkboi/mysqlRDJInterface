@@ -32,7 +32,8 @@ class RdjManager {
         this.queue={
             event: new EventEmitter(),
             next: null,
-            previous: null,
+            current: null,
+            previous:null,
             history: null
         }
     }
@@ -173,12 +174,23 @@ class RdjManager {
     async getHistory(){
         let tmpLimit = this.controller.model.limit;
         let tmpoffset = this.controller.model.offset;
-        this.controller.model.limit = 10;
+        let tmpSortRef = this.controller.model.sortRef;
+        let tmpSortDir = this.controller.model.sortDir;
+
+        this.controller.model.limit = 5;
         this.controller.model.offset = 0;
+        this.controller.model.sortRef = 'ID';
+        this.controller.model.sortDir = 'desc';
+
         this.queue.history = await this.controller.model.getAll('history');
-        this.queue.previous = this.queue.history[0];
+
+        this.queue.current = this.queue.history[0];
+        this.queue.previous = this.queue.history[1];
+        
         this.controller.model.limit = tmpLimit;
         this.controller.model.offset = tmpoffset;
+        this.controller.model.sortRef = tmpSortRef;
+        this.controller.model.sortDir = tmpSortDir;
     }
 
     async watchHistory() {
@@ -223,7 +235,7 @@ class RdjManager {
             console.log(next);
         });
         this.queue.event.on('song changed',(event) => {
-            console.log(event.next);
+            console.log(event);
         });
     }
 

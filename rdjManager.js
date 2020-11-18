@@ -137,6 +137,9 @@ class RdjManager {
         else if(config.action == 'get_status'){
             result.response = await this.getStatus();
         }
+        else if(config.action == 'get_queue'){
+            result.response = await JSON.parse(JSON.stringify(this.queue));
+        }
 
         if (Array.isArray(result.response)) {
             result.found = result.response.length;

@@ -73,22 +73,23 @@ app.get('/v2', function (req, res) {
 
 });
 
-model = new Model('radiodj2020_-_sql');
+model = new Model('radiodj2020','sql');
 processor = new Controller(model, null, null);
 rdj = new RdjManager(processor);
 
 app.listen(3000);
 
 //set up for watchers and background tasks
-let hiddenModel = new Model('radiodj2020_-_sql');
+let hiddenModel = new Model('radiodj2020','sql');
 let hiddenProcessor = new Controller(hiddenModel, null, null);
 let hiddenRdj = new RdjManager(hiddenProcessor);
-let testModel = new Model('store_-_nosql');
+//let testModel = new Model('store','nosql');
 
 
 (async () => {
   await hiddenRdj.initWatchers();
   hiddenRdj.watchers.add('history');
   hiddenRdj.watchers.add('songs');
-  testModel.watch('images');
+  hiddenRdj.initSongEvents();
+  //testModel.watch('images');
 })();

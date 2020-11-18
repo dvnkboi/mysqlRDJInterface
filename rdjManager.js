@@ -1,6 +1,7 @@
 const utils = require('./utils');
 const moment = require('moment-timezone');
 const MBA = require('./MBA');
+const { EventEmitter } = require("events");
 
 class RdjManager {
 
@@ -27,7 +28,13 @@ class RdjManager {
         this.API.event.on('next',(res) => {
             this.API.current = res.current;
             this.API.total = res.total;
-        })
+        });
+        this.queue={
+            event: new EventEmitter(),
+            next: null,
+            previous: null,
+            history: null
+        }
     }
 
     async initWatchers() {
@@ -163,10 +170,21 @@ class RdjManager {
         }
     }
 
+    async getHistory(){
+        let tmpLimit = this.controller.model.limit;
+        let tmpoffset = this.controller.model.offset;
+        this.controller.model.limit = 10;
+        this.controller.model.offset = 0;
+        this.queue.history = await this.controller.model.getAll('history');
+        this.queue.previous = this.queue.history[0];
+        this.controller.model.limit = tmpLimit;
+        this.controller.model.offset = tmpoffset;
+    }
+
     async watchHistory() {
         await this.controller.watch('radiodj2020.history.*');
+        await this.getHistory();
         let eta = await this.timeToNext();
-
         if(eta > 0){
             console.log(utils.formatedTime(eta / 1000), 'to next song');
         }
@@ -175,16 +193,17 @@ class RdjManager {
             clearTimeout(this.songPreload);
             this.songPreload = null;
         }
+        
         if(eta - 10000 > 0){
             this.songPreload = setTimeout(() => {
-                console.log('start preload');
+                this.queue.event.emit('preload',this.queue.next);
             }, eta - 10000);
         }
 
         return this.controller.eventHandler.on('history', async (event) => {
             eta = await this.timeToNext();
-            console.log(event.type, event.table, utils.formatedTime(eta / 1000), 'song changed');
-
+            await this.getHistory();
+            this.queue.event.emit('song changed',this.queue);
             if (this.songPreload != null) {
                 clearTimeout(this.songPreload);
                 this.songPreload = null;
@@ -192,11 +211,20 @@ class RdjManager {
 
             if(eta - 10000 > 0){
                 this.songPreload = setTimeout(() => {
-                    console.log('start preload');
+                    this.queue.event.emit('preload',this.queue.next);
                 }, eta - 10000);
             }
         });
 
+    }
+
+    initSongEvents(){
+        this.queue.event.on('preload',(next) => {
+            console.log(next);
+        });
+        this.queue.event.on('song changed',(event) => {
+            console.log(event.next);
+        });
     }
 
     async watchSongs() {
@@ -227,7 +255,7 @@ class RdjManager {
                 console.log('remove event ', event.table, event.affectedColumns, event.affectedRows[0].before.ID);
             }
             else if (event.type == 'UPDATE') {
-                console.log('song updated ', event.table, event.affectedColumns, event.affectedRows[0].before.ID);
+                //console.log('song updated ', event.table, event.affectedColumns, event.affectedRows[0].before.ID);
             }
             else {
                 console.error('unhandled event ', event.type);
@@ -389,12 +417,13 @@ class RdjManager {
     }
 
     async getNextSong() {
-        let result = await this.controller.getOne('queuelist', 'ID', 1);
-        return result;
+        this.queue.next = await this.controller.getOne('queuelist', 'ID', 1);
+        return this.queue.next;
     }
 
     async timeToNext() {
         let nextSong = await this.getNextSong();
+        console.log('bruh');
         nextSong.ETA = moment(nextSong.ETA).local().valueOf();
         let eta = nextSong.ETA - moment().local().valueOf();
         return eta;

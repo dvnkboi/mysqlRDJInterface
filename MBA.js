@@ -8,6 +8,7 @@ var formurlencoded = require('form-urlencoded').default;
 let auth = require('./auth.json');
 const { EventEmitter } = require('events');
 require('dotenv').config();
+let defaultImg = require('./defaultImg.json');
 
 class MBA {
     constructor() {
@@ -34,7 +35,7 @@ class MBA {
             hardThrottle: false,
             timeout: null
         }
-        this.model = new Model('store_-_nosql');
+        this.model = new Model('store','nosql');
         this.events = {
             event: new EventEmitter(),
             current:0
@@ -216,6 +217,16 @@ class MBA {
             else{
                 if(redirect1.statusCode == 404){
                     console.error('not found at redirect 1');
+                    // let existanceCheck = await this.model.getMatching('images','desc',desc);
+                    // if(existanceCheck.length < 1){
+                    //     defaultImg = JSON.parse(JSON.stringify(defaultImg));
+                    //     delete defaultImg['_id'];
+                    //     defaultImg.desc = desc;
+                    //     await this.model.insert('images',defaultImg);
+                    // }
+                    // else{
+                    //     console.info('release',releaseID,'already using default img');
+                    // }
                     return false;
                 }
                 else{

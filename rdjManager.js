@@ -34,7 +34,8 @@ class RdjManager {
             next: null,
             current: null,
             previous:null,
-            history: null
+            history: null,
+            timeToNext:-1
         }
     }
 
@@ -177,7 +178,7 @@ class RdjManager {
         let tmpSortRef = this.controller.model.sortRef;
         let tmpSortDir = this.controller.model.sortDir;
 
-        this.controller.model.limit = 5;
+        this.controller.model.limit = 10;
         this.controller.model.offset = 0;
         this.controller.model.sortRef = 'ID';
         this.controller.model.sortDir = 'desc';
@@ -232,10 +233,24 @@ class RdjManager {
 
     initSongEvents(){
         this.queue.event.on('preload',(next) => {
-            console.log(next);
+            console.log(next,);
         });
         this.queue.event.on('song changed',(event) => {
-            console.log(event);
+            console.log({
+                next:{
+                    title:event.next.title,
+                    artist:event.next.artist
+                },
+                current:{
+                    title:event.current.title,
+                    artist:event.current.artist
+                },
+                previous:{
+                    title:event.previous.title,
+                    artist:event.previous.artist
+                },
+                timeToNext:event.timeToNext
+            });
         });
     }
 
@@ -444,6 +459,7 @@ class RdjManager {
         catch(e){
             eta = 0;
         }
+        this.queue.timeToNext = eta;
         return eta;
     }
 

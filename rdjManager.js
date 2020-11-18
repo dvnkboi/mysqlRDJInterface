@@ -65,6 +65,7 @@ class RdjManager {
             },
             watchedSchemas: []
         }
+        await this.initSongEvents();
     }
 
     async processRequest(config) {
@@ -231,26 +232,49 @@ class RdjManager {
 
     }
 
-    initSongEvents(){
+    async initSongEvents(){
         this.queue.event.on('preload',(next) => {
-            console.log(next,);
-        });
-        this.queue.event.on('song changed',(event) => {
             console.log({
-                next:{
-                    title:event.next.title,
-                    artist:event.next.artist
-                },
-                current:{
-                    title:event.current.title,
-                    artist:event.current.artist
-                },
-                previous:{
-                    title:event.previous.title,
-                    artist:event.previous.artist
-                },
-                timeToNext:event.timeToNext
+                album:next.album,
+                artist:next.artist
             });
+        });
+        this.queue.event.on('song changed',async (event) => {
+            try{
+                console.log({
+                    next:{
+                        album:event.next.album,
+                        artist:event.next.artist
+                    },
+                    current:{
+                        album:event.current.album,
+                        artist:event.current.artist
+                    },
+                    previous:{
+                        album:event.previous.album,
+                        artist:event.previous.artist
+                    },
+                    timeToNext:event.timeToNext
+                });
+            }
+            catch(e){
+                await this.timeToNext();
+                console.log({
+                    next:{
+                        title:this.queue.next.title,
+                        artist:this.queue.next.artist
+                    },
+                    current:{
+                        title:this.queue.current.title,
+                        artist:this.queue.current.artist
+                    },
+                    previous:{
+                        title:this.queue.previous.title,
+                        artist:this.queue.previous.artist
+                    },
+                    timeToNext:this.queue.timeToNext
+                });
+            }
         });
     }
 

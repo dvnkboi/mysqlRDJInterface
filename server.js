@@ -83,13 +83,15 @@ app.listen(3000);
 let hiddenModel = new Model('radiodj2020','sql');
 let hiddenProcessor = new Controller(hiddenModel, null, null);
 let hiddenRdj = new RdjManager(hiddenProcessor);
+
 //let testModel = new Model('store','nosql');
 
 
 (async () => {
   await hiddenRdj.initWatchers();
+  
   hiddenRdj.watchers.add('history');
   hiddenRdj.watchers.add('songs');
-  hiddenRdj.initSongEvents();
+  
   //testModel.watch('images');
 })();

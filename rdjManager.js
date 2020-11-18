@@ -309,6 +309,7 @@ class RdjManager {
             //console.log('song added ', `${song.artist} - ${song.title} (${song.album})`);
             try{
                 proxy.API.buffer[song.artist].push(song.album);
+                
             }
             catch(e){
                 proxy.API.buffer[song.artist] = [];
@@ -395,8 +396,14 @@ class RdjManager {
 
     async timeToNext() {
         let nextSong = await this.getNextSong();
-        nextSong.ETA = moment(nextSong.ETA).local().valueOf();
-        let eta = nextSong.ETA - moment().local().valueOf();
+        let eta;
+        try{
+            nextSong.ETA = moment(nextSong.ETA).local().valueOf();
+            eta = nextSong.ETA - moment().local().valueOf();
+        }
+        catch(e){
+            eta = 0;
+        }
         return eta;
     }
 

@@ -26,13 +26,18 @@ class MBA {
         }
         this.getJSON = bent('GET', 'json', this.headers);
         this.throttle = {
-            wait: 500,
+            wait: 1010,
             active: false,
             itteration: 0,
             itterationLife: 5000,
-            maxItterations: 10,
+            maxItterations: 20,
             hardThrottle: false,
-            timeout: null
+            timeout: null,
+        }
+        this.retry = {
+            errorBuffer:{},
+            timeout:null,
+            retryAfter:10000
         }
         this.model = new Model('store_-_nosql');
         this.events = {
@@ -44,7 +49,7 @@ class MBA {
     itterate() {
         let proxy = this;
         this.throttle.itteration++;
-        this.throttle.wait = utils.map(Math.min(this.throttle.itteration, this.throttle.maxItterations), 0, this.throttle.maxItterations, 500, 1500);
+        this.throttle.wait = utils.map(Math.min(this.throttle.itteration, this.throttle.maxItterations), 0, this.throttle.maxItterations, 750, 5000);
         this.throttle.hardThrottle = this.throttle.itteration > this.throttle.maxItterations ? true : false;
         if (this.throttle.timeout != null) {
             clearTimeout(this.throttle.timeout);
@@ -73,7 +78,6 @@ class MBA {
     }
 
     async getRelease(artist, title, limit, offset) {
-
         let releaseExistCheck = [];
         let res = {};
         let desc = `${artist}_-_${title}`.split(' ').join('_').toLowerCase();
@@ -162,11 +166,36 @@ class MBA {
                     if(art[0] == "_"){
                         delete art[0];
                     }
-                    await this.getRelease(art.trim(), release);
+                    try{
+                        await this.getRelease(art.trim(), release);
+                    }
+                    catch(e){
+                        try{
+                            this.retry.errorBuffer[art.trim()].push(release);
+                            
+                        }
+                        catch(e){
+                            this.retry.errorBuffer[art.trim()] = [];
+                            this.retry.errorBuffer[art.trim()].push(release);
+                        }
+                    }
+
+                    if (this.retry.timeout != null) {
+                        clearTimeout(this.retry.timeout);
+                        this.retry.timeout = null;
+                    }
+
                     this.events.current++;
                     this.events.event.emit('next',{
                         current:this.events.current
                     });
+
+                    this.retry.timeout = setTimeout(async () => {
+                        console.log('retry getting failed items');
+                        await this.getMultipleReleases(this.retry.errorBuffer);
+                        console.log('done getting failed items');
+                        this.retry.errorBuffer = {};
+                    }, this.retry.retryAfter);
                 }
             }
         }
@@ -284,17 +313,17 @@ class MBA {
     async checkAuth() {
         try {
             // eslint-disable-next-line no-unused-vars
-            let res = await this.getJSON(encodeURI(`https://musicbrainz.org/ws/2/release-group?query=artist:"imagine dragons" AND release:origins&limit=1&offset=0`));
-            return true;
+            // let res = await this.getJSON(encodeURI(`https://musicbrainz.org/ws/2/release-group?query=artist:"imagine dragons" AND release:origins&limit=1&offset=0`));
+            // return true;
         }
         catch (e) {
-            console.log('authorizing');
-            let token = await this.authorise();
-            await this.writeAuth(token);
-            this.headers.Authorization = `Bearer ${token}`;
-            this.getJSON = bent('GET', 'json', this.headers);
-            console.log('authorized');
-            return false;
+            // console.log('authorizing');
+            // let token = await this.authorise();
+            // await this.writeAuth(token);
+            // this.headers.Authorization = `Bearer ${token}`;
+            // this.getJSON = bent('GET', 'json', this.headers);
+            // console.log('authorized');
+            // return false;
         }
     }
 

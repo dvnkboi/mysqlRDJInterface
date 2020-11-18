@@ -29,7 +29,7 @@ class RdjManager {
             this.API.current = res.current;
             this.API.total = res.total;
         });
-        this.queue={
+        this.queue = {
             event: new EventEmitter(),
             next: null,
             current: null,
@@ -138,7 +138,10 @@ class RdjManager {
             result.response = await this.getStatus();
         }
         else if(config.action == 'get_queue'){
-            result.response = await JSON.parse(JSON.stringify(this.queue));
+            await this.getHistory();
+            await this.timeToNext();
+            result.response = JSON.parse(JSON.stringify(this.queue));
+            delete result.response.event;
         }
 
         if (Array.isArray(result.response)) {
@@ -188,7 +191,6 @@ class RdjManager {
         this.controller.model.sortDir = 'desc';
 
         this.queue.history = await this.controller.model.getAll('history');
-
         this.queue.current = this.queue.history[0];
         this.queue.previous = this.queue.history[1];
         
@@ -200,8 +202,8 @@ class RdjManager {
 
     async watchHistory() {
         await this.controller.watch('radiodj2020.history.*');
-        await this.getHistory();
         let eta = await this.timeToNext();
+        await this.getHistory();
         if(eta > 0){
             console.log(utils.formatedTime(eta / 1000), 'to next song');
         }

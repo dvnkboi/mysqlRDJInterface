@@ -264,20 +264,39 @@ class RdjManager {
             }
             catch(e){
                 await this.timeToNext();
-                console.log({
-                    next:{
+                let current,next,previous;
+                try{
+                    next = {
                         title:this.queue.next.title,
                         artist:this.queue.next.artist
-                    },
-                    current:{
+                    }
+                }
+                catch(e){
+                    next = null;
+                }
+                try{
+                    current = {
                         title:this.queue.current.title,
                         artist:this.queue.current.artist
-                    },
-                    previous:{
+                    }
+                }
+                catch(e){
+                    current = null;
+                }
+                try{
+                    previous = {
                         title:this.queue.previous.title,
                         artist:this.queue.previous.artist
-                    },
-                    timeToNext:this.queue.timeToNext
+                    }
+                }
+                catch(e){
+                    previous = null;
+                }
+                console.log({
+                    next,
+                    current,
+                    previous,
+                    timeToNext:this.queue.timeToNext || null
                 });
             }
         });

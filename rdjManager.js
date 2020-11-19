@@ -256,6 +256,14 @@ class RdjManager {
     async initSongEvents(){
         this.queue.event.on('preload',(next) => {
             console.log({
+                event:'preload',
+                album:next.album,
+                artist:next.artist
+            });
+        });
+        this.queue.event.on('safePreload',(next) => {
+            console.log({
+                event:'safe preload',
                 album:next.album,
                 artist:next.artist
             });

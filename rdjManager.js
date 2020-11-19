@@ -213,24 +213,23 @@ class RdjManager {
             this.songPreload = null;
         }
 
-        if(eta - 10000 > 0){
-            if(eta - 25000 > 0){
-                this.songPreload = setTimeout(() => {
-                    this.queue.event.emit('safePreload',this.queue.next);
-                }, eta - 25000);
-            }
-            else{
-                this.songPreload = setTimeout(() => {
+        if(eta - 5000 > 0){
+            if(eta - 10000 >0){
+                if(eta - 25000 > 0){
+                    this.songPreload = setTimeout(async () => {
+                        await this.getNextSong();
+                        this.queue.event.emit('safePreload',this.queue.next);
+                    }, eta - 25000);
+                }
+                this.songPreload = setTimeout(async () => {
+                    await this.getNextSong();
                     this.queue.event.emit('preload',this.queue.next);
                 }, eta - 10000);
             }
-        }
-        else{
-            if(eta - 5000 > 0){
-                this.songPreload = setTimeout(() => {
-                    this.queue.event.emit('unsafePreload',this.queue.next);
-                }, eta - 5000);
-            }
+            this.songPreload = setTimeout(async () => {
+                await this.getNextSong();
+                this.queue.event.emit('unsafePreload',this.queue.next);
+            }, eta - 5000);
         }
 
         return this.controller.eventHandler.on('history', async () => {
@@ -242,24 +241,22 @@ class RdjManager {
                 this.songPreload = null;
             }
 
-            if(eta - 10000 > 0){ //checks not needed but it will work either way 
-                if(eta - 25000 > 0){
-                    this.songPreload = setTimeout(() => {
-                        this.queue.event.emit('safePreload',this.queue.next);
-                    }, eta - 25000);
-                }
-                
-                this.songPreload = setTimeout(() => {
-                    this.queue.event.emit('preload',this.queue.next);
-                }, eta - 10000);
+            this.songPreload = setTimeout(async () => {
+                await this.getNextSong();
+                this.queue.event.emit('safePreload',this.queue.next);
+            }, eta - 25000);
 
-                this.songPreload = setTimeout(() => {
-                    this.queue.event.emit('unsafePreload',this.queue.next);
-                }, eta - 5000);
-            }
+            this.songPreload = setTimeout(async () => {
+                await this.getNextSong();
+                this.queue.event.emit('preload',this.queue.next);
+            }, eta - 10000);
+
+            this.songPreload = setTimeout(async () => {
+                await this.getNextSong();
+                this.queue.event.emit('unsafePreload',this.queue.next);
+            }, eta - 5000);
 
         });
-
         
     }
 

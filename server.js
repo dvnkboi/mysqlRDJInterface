@@ -3,10 +3,13 @@ const Controller = require('./controller.js');
 const Model = require('./model.js');
 const RdjManager = require('./rdjManager.js');
 let models = require('./models');
+const helmet = require("helmet");
 
 //globals
 const app = express();
 let model, processor, rdj;
+
+app.use(helmet());
 
 app.get('/api', function (req, res) {
   const config = {

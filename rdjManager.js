@@ -212,11 +212,18 @@ class RdjManager {
             clearTimeout(this.songPreload);
             this.songPreload = null;
         }
-        
+
         if(eta - 10000 > 0){
-            this.songPreload = setTimeout(() => {
-                this.queue.event.emit('preload',this.queue.next);
-            }, eta - 10000);
+            if(eta - 25000 > 0){
+                this.songPreload = setTimeout(() => {
+                    this.queue.event.emit('safepreload',this.queue.next);
+                }, eta - 25000);
+            }
+            else{
+                this.songPreload = setTimeout(() => {
+                    this.queue.event.emit('preload',this.queue.next);
+                }, eta - 10000);
+            }
         }
 
         return this.controller.eventHandler.on('history', async () => {
@@ -228,13 +235,22 @@ class RdjManager {
                 this.songPreload = null;
             }
 
-            if(eta - 10000 > 0){
-                this.songPreload = setTimeout(() => {
-                    this.queue.event.emit('preload',this.queue.next);
-                }, eta - 10000);
+            if(eta - 10000 > 0){ //checks not needed but it will work either way 
+                if(eta - 25000 > 0){
+                    this.songPreload = setTimeout(() => {
+                        this.queue.event.emit('safepreload',this.queue.next);
+                    }, eta - 25000);
+                }
+                else{
+                    this.songPreload = setTimeout(() => {
+                        this.queue.event.emit('preload',this.queue.next);
+                    }, eta - 10000);
+                }
             }
+
         });
 
+        
     }
 
     async initSongEvents(){
@@ -508,6 +524,7 @@ class RdjManager {
             eta = 0;
         }
         this.queue.timeToNext = eta;
+        this.queue.next.ETA = eta;
         return eta;
     }
 

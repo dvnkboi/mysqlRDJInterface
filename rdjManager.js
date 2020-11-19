@@ -216,13 +216,20 @@ class RdjManager {
         if(eta - 10000 > 0){
             if(eta - 25000 > 0){
                 this.songPreload = setTimeout(() => {
-                    this.queue.event.emit('safepreload',this.queue.next);
+                    this.queue.event.emit('safePreload',this.queue.next);
                 }, eta - 25000);
             }
             else{
                 this.songPreload = setTimeout(() => {
                     this.queue.event.emit('preload',this.queue.next);
                 }, eta - 10000);
+            }
+        }
+        else{
+            if(eta - 5000 > 0){
+                this.songPreload = setTimeout(() => {
+                    this.queue.event.emit('unsafePreload',this.queue.next);
+                }, eta - 5000);
             }
         }
 
@@ -238,14 +245,17 @@ class RdjManager {
             if(eta - 10000 > 0){ //checks not needed but it will work either way 
                 if(eta - 25000 > 0){
                     this.songPreload = setTimeout(() => {
-                        this.queue.event.emit('safepreload',this.queue.next);
+                        this.queue.event.emit('safePreload',this.queue.next);
                     }, eta - 25000);
                 }
-                else{
-                    this.songPreload = setTimeout(() => {
-                        this.queue.event.emit('preload',this.queue.next);
-                    }, eta - 10000);
-                }
+                
+                this.songPreload = setTimeout(() => {
+                    this.queue.event.emit('preload',this.queue.next);
+                }, eta - 10000);
+
+                this.songPreload = setTimeout(() => {
+                    this.queue.event.emit('unsafePreload',this.queue.next);
+                }, eta - 5000);
             }
 
         });
@@ -255,15 +265,18 @@ class RdjManager {
 
     async initSongEvents(){
 
-        this.queue.event.on('preload',(next) => {
+        this.queue.event.on('preload',(/*next*/) => {
             console.log('preload');
         });
-        
-        this.queue.event.on('safePreload',(next) => {
+        this.queue.event.on('safePreload',(/*next*/) => {
             console.log('safe preload');
         });
-        
-        this.queue.event.on('song changed',async (event) => {
+
+        this.queue.event.on('unsafePreload',(/*next*/) => {
+            console.log('unsafe preload');
+        });
+
+        this.queue.event.on('song changed',async (/*queue*/) => {
             let current,next,previous;
             try{
                 next = this.queue.next.title;
@@ -278,18 +291,21 @@ class RdjManager {
                     next = this.queue.next.title;
                 }
                 catch(e){
+                    // eslint-disable-next-line no-unused-vars
                     next = null;
                 }
                 try{
                     current = this.queue.current.title;
                 }
                 catch(e){
+                    // eslint-disable-next-line no-unused-vars
                     current = null;
                 }
                 try{
                     previous = this.queue.current.title;
                 }
                 catch(e){
+                    // eslint-disable-next-line no-unused-vars
                     previous = null;
                 }
                 console.log('song changed','OTF update');

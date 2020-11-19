@@ -216,13 +216,20 @@ class RdjManager {
         if(eta - 10000 > 0){
             if(eta - 25000 > 0){
                 this.songPreload = setTimeout(() => {
-                    this.queue.event.emit('safepreload',this.queue.next);
+                    this.queue.event.emit('safePreload',this.queue.next);
                 }, eta - 25000);
             }
             else{
                 this.songPreload = setTimeout(() => {
                     this.queue.event.emit('preload',this.queue.next);
                 }, eta - 10000);
+            }
+        }
+        else{
+            if(eta - 5000 > 0){
+                this.songPreload = setTimeout(() => {
+                    this.queue.event.emit('unsafePreload',this.queue.next);
+                }, eta - 5000);
             }
         }
 
@@ -238,14 +245,17 @@ class RdjManager {
             if(eta - 10000 > 0){ //checks not needed but it will work either way 
                 if(eta - 25000 > 0){
                     this.songPreload = setTimeout(() => {
-                        this.queue.event.emit('safepreload',this.queue.next);
+                        this.queue.event.emit('safePreload',this.queue.next);
                     }, eta - 25000);
                 }
-                else{
-                    this.songPreload = setTimeout(() => {
-                        this.queue.event.emit('preload',this.queue.next);
-                    }, eta - 10000);
-                }
+                
+                this.songPreload = setTimeout(() => {
+                    this.queue.event.emit('preload',this.queue.next);
+                }, eta - 10000);
+
+                this.songPreload = setTimeout(() => {
+                    this.queue.event.emit('unsafePreload',this.queue.next);
+                }, eta - 5000);
             }
 
         });
@@ -254,6 +264,7 @@ class RdjManager {
     }
 
     async initSongEvents(){
+
         this.queue.event.on('preload',(next) => {
             console.log({
                 event:'preload',
@@ -261,6 +272,7 @@ class RdjManager {
                 artist:next.artist
             });
         });
+
         this.queue.event.on('safePreload',(next) => {
             console.log({
                 event:'safe preload',
@@ -268,6 +280,15 @@ class RdjManager {
                 artist:next.artist
             });
         });
+
+        this.queue.event.on('unsafePreload',(next) => {
+            console.log({
+                event:'unsafe preload',
+                album:next.album,
+                artist:next.artist
+            });
+        });
+
         this.queue.event.on('song changed',async (event) => {
             try{
                 console.log({

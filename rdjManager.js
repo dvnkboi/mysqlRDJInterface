@@ -200,6 +200,48 @@ class RdjManager {
         this.controller.model.sortDir = tmpSortDir;
     }
 
+    async emitPreloadEvents(eta){
+
+        if (this.songPreload != null) {
+            clearTimeout(this.songPreload);
+            this.songPreload = null;
+        }
+
+        let changeCheck;
+        changeCheck = this.queue.next;
+
+        if(eta - 5000 > 0){
+            if(eta - 10000 >0){
+                if(eta - 25000 > 0){
+                    this.songPreload = setTimeout(async () => {
+                        await this.getNextSong();
+                        if(changeCheck != this.queue.next){
+                            console.log('preload changed');
+                        }
+                        changeCheck = this.queue.next;
+                        this.queue.event.emit('safePreload',this.queue.next);
+                    }, eta - 25000);
+                }
+                this.songPreload = setTimeout(async () => {
+                    await this.getNextSong();
+                    if(changeCheck != this.queue.next){
+                        console.log('preload changed yikes');
+                    }
+                    changeCheck = this.queue.next;
+                    this.queue.event.emit('preload',this.queue.next);
+                }, eta - 10000);
+            }
+            this.songPreload = setTimeout(async () => {
+                await this.getNextSong();
+                if(changeCheck != this.queue.next){
+                    console.log('unsafe preload change stop that lol');
+                }
+                changeCheck = this.queue.next;
+                this.queue.event.emit('unsafePreload',this.queue.next);
+            }, eta - 5000);
+        }
+    }
+
     async watchHistory() {
         await this.controller.watch('radiodj2020.history.*');
         let eta = await this.timeToNext();
@@ -213,48 +255,14 @@ class RdjManager {
             this.songPreload = null;
         }
 
-        if(eta - 5000 > 0){
-            if(eta - 10000 >0){
-                if(eta - 25000 > 0){
-                    this.songPreload = setTimeout(async () => {
-                        await this.getNextSong();
-                        this.queue.event.emit('safePreload',this.queue.next);
-                    }, eta - 25000);
-                }
-                this.songPreload = setTimeout(async () => {
-                    await this.getNextSong();
-                    this.queue.event.emit('preload',this.queue.next);
-                }, eta - 10000);
-            }
-            this.songPreload = setTimeout(async () => {
-                await this.getNextSong();
-                this.queue.event.emit('unsafePreload',this.queue.next);
-            }, eta - 5000);
-        }
+        await this.emitPreloadEvents(eta);
 
         return this.controller.eventHandler.on('history', async () => {
             eta = await this.timeToNext();
             await this.getHistory();
             this.queue.event.emit('song changed',this.queue);
-            if (this.songPreload != null) {
-                clearTimeout(this.songPreload);
-                this.songPreload = null;
-            }
 
-            this.songPreload = setTimeout(async () => {
-                await this.getNextSong();
-                this.queue.event.emit('safePreload',this.queue.next);
-            }, eta - 25000);
-
-            this.songPreload = setTimeout(async () => {
-                await this.getNextSong();
-                this.queue.event.emit('preload',this.queue.next);
-            }, eta - 10000);
-
-            this.songPreload = setTimeout(async () => {
-                await this.getNextSong();
-                this.queue.event.emit('unsafePreload',this.queue.next);
-            }, eta - 5000);
+            await this.emitPreloadEvents(eta);
 
         });
         

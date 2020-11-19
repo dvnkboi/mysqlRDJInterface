@@ -262,84 +262,50 @@ class RdjManager {
 
     async initSongEvents(){
 
-        this.queue.event.on('preload',(next) => {
-            console.log({
-                event:'preload',
-                album:next.album,
-                artist:next.artist
-            });
+        this.queue.event.on('preload',(/*next*/) => {
+            console.log('preload');
+        });
+        this.queue.event.on('safePreload',(/*next*/) => {
+            console.log('safe preload');
         });
 
-        this.queue.event.on('safePreload',(next) => {
-            console.log({
-                event:'safe preload',
-                album:next.album,
-                artist:next.artist
-            });
+        this.queue.event.on('unsafePreload',(/*next*/) => {
+            console.log('unsafe preload');
         });
 
-        this.queue.event.on('unsafePreload',(next) => {
-            console.log({
-                event:'unsafe preload',
-                album:next.album,
-                artist:next.artist
-            });
-        });
-
-        this.queue.event.on('song changed',async (event) => {
+        this.queue.event.on('song changed',async (/*queue*/) => {
+            let current,next,previous;
             try{
-                console.log({
-                    next:{
-                        album:event.next.album,
-                        artist:event.next.artist
-                    },
-                    current:{
-                        album:event.current.album,
-                        artist:event.current.artist
-                    },
-                    previous:{
-                        album:event.previous.album,
-                        artist:event.previous.artist
-                    },
-                    timeToNext:event.timeToNext
-                });
+                next = this.queue.next.title;
+                previous = this.queue.current.title;
+                current = this.queue.current.title;
+                console.log('song changed');
             }
             catch(e){
                 await this.timeToNext();
-                let current,next,previous;
+                
                 try{
-                    next = {
-                        title:this.queue.next.title,
-                        artist:this.queue.next.artist
-                    }
+                    next = this.queue.next.title;
                 }
                 catch(e){
+                    // eslint-disable-next-line no-unused-vars
                     next = null;
                 }
                 try{
-                    current = {
-                        title:this.queue.current.title,
-                        artist:this.queue.current.artist
-                    }
+                    current = this.queue.current.title;
                 }
                 catch(e){
+                    // eslint-disable-next-line no-unused-vars
                     current = null;
                 }
                 try{
-                    previous = {
-                        title:this.queue.previous.title,
-                        artist:this.queue.previous.artist
-                    }
+                    previous = this.queue.current.title;
                 }
                 catch(e){
+                    // eslint-disable-next-line no-unused-vars
                     previous = null;
                 }
-                console.log({
-                    next,
-                    current,
-                    previous,
-                    timeToNext:this.queue.timeToNext || null
-                });
+                console.log('song changed','OTF update');
             }
         });
     }

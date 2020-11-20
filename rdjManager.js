@@ -208,35 +208,35 @@ class RdjManager {
         }
 
         let changeCheck;
-        changeCheck = this.queue.next;
+        changeCheck = JSON.stringify(this.queue.next);
 
         if(eta - 5000 > 0){
             if(eta - 10000 >0){
                 if(eta - 25000 > 0){
                     this.songPreload = setTimeout(async () => {
                         await this.getNextSong();
-                        if(changeCheck != this.queue.next){
+                        if(changeCheck != JSON.stringify(this.queue.next)){
                             console.log('preload changed');
                         }
-                        changeCheck = this.queue.next;
+                        changeCheck = JSON.stringify(this.queue.next);
                         this.queue.event.emit('safePreload',this.queue.next);
                     }, eta - 25000);
                 }
                 this.songPreload = setTimeout(async () => {
                     await this.getNextSong();
-                    if(changeCheck != this.queue.next){
+                    if(changeCheck != JSON.stringify(this.queue.next)){
                         console.log('preload changed yikes');
                     }
-                    changeCheck = this.queue.next;
+                    changeCheck = JSON.stringify(this.queue.next);
                     this.queue.event.emit('preload',this.queue.next);
                 }, eta - 10000);
             }
             this.songPreload = setTimeout(async () => {
                 await this.getNextSong();
-                if(changeCheck != this.queue.next){
+                if(changeCheck != JSON.stringify(this.queue.next)){
                     console.log('unsafe preload change stop that lol');
                 }
-                changeCheck = this.queue.next;
+                changeCheck = JSON.stringify(this.queue.next);
                 this.queue.event.emit('unsafePreload',this.queue.next);
             }, eta - 5000);
         }

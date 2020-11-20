@@ -1,7 +1,12 @@
+/* eslint-disable no-sync */
 const utils = require('./utils');
 const moment = require('moment-timezone');
 const MBA = require('./MBA');
 const { EventEmitter } = require("events");
+const { promises: fs } = require("fs");
+// eslint-disable-next-line no-empty-function
+let allowed = {};
+
 
 class RdjManager {
 
@@ -66,19 +71,56 @@ class RdjManager {
             watchedSchemas: []
         }
         await this.initSongEvents();
+        allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
     }
 
     async processRequest(config) {
-        this.controller.authenticate(config.apiKey);
-        let proxy = this;
         let result = {
             response: []
         };
 
+        result.caller = await this.controller.getCaller();
+        if (this.controller.blackListed) {
+            this.controller.sendError(403, 'blackListed');
+            return;
+        }
+
+        this.controller.authenticate(config.apiKey);
+        if (!this.controller.allowed) {
+            this.controller.sendError(403, 'unauthorized');
+            if(allowed.infringments[result.caller]){
+                allowed.infringments[result.caller]++;
+            }
+            else{
+                allowed.infringments[result.caller]=1;
+            }
+            if(allowed.infringments[result.caller] >= 3){
+                if(!allowed.blackList.includes(result.caller)){
+                    allowed.blackList.push(result.caller);
+                }
+                let caller = result.caller;
+                let whiteList = function(caller){
+                    setTimeout(async () => {
+                        delete allowed.infringments[caller];
+                        allowed.blackList = allowed.blackList.filter(e => e !== caller);
+                        await fs.writeFile('allowed.json', JSON.stringify(allowed), 'utf8');
+                        // eslint-disable-next-line no-empty-function
+                        allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
+                    },3600000);
+                }
+                whiteList(caller,allowed);
+            }
+
+            await fs.writeFile('allowed.json', JSON.stringify(allowed), 'utf8');
+
+            // eslint-disable-next-line no-empty-function
+            allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
+            return;
+        }
+
         let processTime = Date.now();
         result.reqDate = new Date().toJSON();
 
-        result.caller = this.controller.getCaller();
         this.config = {
             apiKey: config.apiKey,
             action: config.action,
@@ -93,40 +135,7 @@ class RdjManager {
         };
 
         if (config.action == 'get') {
-            let element = [];
-            if (config.refs) {
-                let refs = config.refs.split(',');
-                let done = [];
-                this.config.limit = null;
-                this.config.page = null;
-                // this.config.sortRef = null;
-                // this.config.sortDir = null;
-
-                for (const el of refs) {
-                    if (el && !done.includes(el)) {
-                        proxy.config.ref = el;
-                        done.push(el);
-                        element = await proxy.controller.getRows(proxy.config);
-                        if (element.resultSet.length >= 1) {
-                            result.response.push(element);
-                        }
-                        else {
-                            result.response.push({ resultSet: 'could not find element with reference: ' + el });
-                        }
-                    }
-                }
-            }
-            else {
-                try {
-                    result.response = await proxy.controller.getRows(proxy.config);
-                    result.found = result.response.found;
-                    delete result.response['found'];
-                }
-                catch (e) {
-                    console.error('result has no attribute found');
-                    return;
-                }
-            }
+           result = await this.handleGetReq(result,config); 
         }
         else if(config.action == 'update_meta'){
             result.response = await this.updateMeta();
@@ -177,6 +186,45 @@ class RdjManager {
         if(!this.controller.res.headersSent){
             this.controller.res.json(result);
         }
+    }
+
+    async handleGetReq(result,config){
+        let element = [];
+        let proxy = this;
+        if (config.refs) {
+            let refs = config.refs.split(',');
+            let done = [];
+            this.config.limit = null;
+            this.config.page = null;
+            // this.config.sortRef = null;
+            // this.config.sortDir = null;
+
+            for (const el of refs) {
+                if (el && !done.includes(el)) {
+                    proxy.config.ref = el;
+                    done.push(el);
+                    element = await proxy.controller.getRows(proxy.config);
+                    if (element.resultSet.length >= 1) {
+                        result.response.push(element);
+                    }
+                    else {
+                        result.response.push({ resultSet: 'could not find element with reference: ' + el });
+                    }
+                }
+            }
+        }
+        else {
+            try {
+                result.response = await proxy.controller.getRows(proxy.config);
+                result.found = result.response.found;
+                delete result.response['found'];
+            }
+            catch (e) {
+                console.error('result has no attribute found');
+                return;
+            }
+        }
+        return result;
     }
 
     async getHistory(){

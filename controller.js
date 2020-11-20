@@ -1,4 +1,6 @@
 /* eslint-disable no-process-env */
+let allowed = {};
+const { promises: fs } = require("fs");
 
 require('dotenv').config();
 
@@ -10,25 +12,32 @@ class Controller {
         this.req = req;
         this.res = res;
         this.allowed = false;
+        this.blackListed = false;
         this.api = process.env.API_KEY;
         this.eventHandler = model.eventHandler.event;
     }
 
     async authenticate(api) {
-        if (api === this.api) {
-            this.allowed = true;
+        try{
+            if (api === this.api && allowed.databases.includes(this.model.dbName)) {
+                this.allowed = true;
+            }
+            else {
+                this.allowed = false;
+            }
         }
-        else {
-            this.allowed = false;
+        catch(e){
+            allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
+            if (api === this.api && allowed.databases.includes(this.model.dbName)) {
+                this.allowed = true;
+            }
+            else {
+                this.allowed = false;
+            }
         }
     }
 
     async getRows(config) {
-
-        if (!this.allowed) {
-            this.sendError(403, 'invalid api key');
-            return;
-        }
 
         //handling pagination and sorting
         if (config.limit) {
@@ -82,10 +91,10 @@ class Controller {
                     }
                 }
                 else {
-                    //result.resultSet = await this.model.getTables();
-                    //result.numOfRows = result.resultSet.length;
-                    this.sendError(500, 'incomplete request');
-                    return;
+                    result.resultSet = await this.model.getTables();
+                    result.numOfRows = result.resultSet.length;
+                    //this.sendError(500, 'incomplete request');
+                    //return;
                 }
             }
             else if (config.action === 'update') {
@@ -137,7 +146,43 @@ class Controller {
         let result = {};
         result.reqDate = new Date().toJSON();
 
-        result.caller = this.getCaller();
+        result.caller = await this.getCaller();
+        if (this.blackListed) {
+            this.sendError(403, 'blackListed');
+            return;
+        }
+
+        if (!this.allowed) {
+            this.sendError(403, 'unauthorized');
+            if(allowed.infringments[result.caller]){
+                allowed.infringments[result.caller]++;
+            }
+            else{
+                allowed.infringments[result.caller]=1;
+            }
+            if(allowed.infringments[result.caller] >= 3){
+                if(!allowed.blackList.includes(result.caller)){
+                    allowed.blackList.push(result.caller);
+                }
+                let caller = result.caller;
+                let whiteList = function(caller){
+                    setTimeout(async () => {
+                        delete allowed.infringments[caller];
+                        allowed.blackList = allowed.blackList.filter(e => e !== caller);
+                        await fs.writeFile('allowed.json', JSON.stringify(allowed), 'utf8');
+                        // eslint-disable-next-line no-empty-function
+                        allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
+                    },3600000);
+                }
+                whiteList(caller,allowed);
+            }
+
+            await fs.writeFile('allowed.json', JSON.stringify(allowed), 'utf8');
+
+            // eslint-disable-next-line no-empty-function
+            allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
+            return;
+        }
 
         result.response = await this.getRows(config);
 
@@ -151,11 +196,22 @@ class Controller {
         this.sendJSON(result);
     }
 
-    getCaller() {
-        return this.req.headers['x-forwarded-for'] ||
-            this.req.connection.remoteAddress ||
-            this.req.socket.remoteAddress ||
-            (this.req.connection.socket ? this.req.connection.socket.remoteAddress : null);
+    async getCaller() {
+        allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
+        console.log(allowed.infringments);
+        let caller = this.req.headers['x-forwarded-for'] ||
+                    this.req.connection.remoteAddress ||
+                    this.req.socket.remoteAddress ||
+                    (this.req.connection.socket ? this.req.connection.socket.remoteAddress : null);
+        if(allowed.blackList.includes(caller)){
+            this.blackListed = true;
+            console.log('refused req from',caller);
+        }
+        else{
+            this.blackListed = false;
+        }
+        console.log('req from',caller);
+        return caller;
     }
 
     async watch(schema) {

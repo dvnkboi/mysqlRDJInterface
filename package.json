@@ -20,6 +20,7 @@
     "mongodb": "^3.6.2",
     "mysql": "^2.18.1",
     "mysql-async-wrapper": "^2.0.1",
+    "self-reload-json": "^0.4.0",
     "sqlstring": "^2.3.2"
   },
   "devDependencies": {

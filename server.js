@@ -46,7 +46,7 @@ app.get('/api', function (req, res) {
   };
 
   for(const property of Object.keys(config)){
-    if(config[property]){
+    if(typeof config[property] == 'string'){
       config[property] = config[property].split(' ')[0].split('%20')[0];
     }
   }
@@ -84,8 +84,9 @@ app.get('/v2', function (req, res) {
     sortDir: req.query.sortdir
   };
 
+  //removing everything after the first item in query, prevents injection attacks
   for(const property of Object.keys(config)){
-    if(config[property]){
+    if(typeof config[property] == 'string'){
       config[property] = config[property].split(' ')[0].split('%20')[0];
     }
   }

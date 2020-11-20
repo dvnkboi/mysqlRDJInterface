@@ -63,11 +63,11 @@ class Controller {
 
                             if (config.mod1 == "true" || config.mod1 == "false") {
                                 result.resultSet = await this.model.getMatching(config.table, config.col, config.ref, config.mod1);
-                                result.numOfRows = result.resultSet.length;
+                                result.numOfRows = result.resultSet ? result.resultSet.length : 0;
                             }
                             else {
                                 result.resultSet = await this.model.getMatching(config.table, config.col, config.ref, false);
-                                result.numOfRows = result.resultSet.length;
+                                result.numOfRows = result.resultSet ? result.resultSet.length : 0;
                             }
                         }
                         else {
@@ -78,7 +78,7 @@ class Controller {
                     else {
                         result.resultSet = await this.model.getAll(config.table);
                         result.found = await this.model.getNumOfRows(config.table);
-                        result.numOfRows = result.resultSet.length;
+                        result.numOfRows = result.resultSet ? result.resultSet.length : 0;
                     }
                 }
                 else {

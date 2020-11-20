@@ -6,6 +6,7 @@ const utils = require('./utils');
 const MySQLEvents = require('@rodrigogs/mysql-events');
 const { EventEmitter } = require("events");
 const MongoClient = require('mongodb').MongoClient;
+var SqlString = require('sqlstring');
 
 require('dotenv').config();
 
@@ -219,16 +220,25 @@ class Model {
         if (this.dbType == 'sql') {
             let query;
 
+            //escaping
+            table = SqlString.escape(table).split("'").join("");
+            col = SqlString.escape(col).split("'").join("");
+            ref = SqlString.escape(ref).split("'").join("");
+
             //pagination and sort
             let queryLimit;
             let querySort;
             if (this.limit) {
+                this.limit = parseInt(SqlString.escape(this.limit));
+                this.offset = this.offset ? parseInt(SqlString.escape(this.offset)) : 0;
                 queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
             }
             else {
                 queryLimit = ``;
             }
             if (this.sortRef) {
+                this.sortRef = SqlString.escape(this.sortRef).split("'").join("");
+                this.sortDir = SqlString.escape(this.sortDir).split("'").join("");
                 if (this.sortDir == 'asc') {
                     querySort = `ORDER BY ${this.sortRef} ASC `;
                 }
@@ -307,18 +317,25 @@ class Model {
         await this.manageLife();
         await this.connect();
 
+        //escaping
+        table = SqlString.escape(table).split("'").join("");
+
         //pagination and sort
         let queryLimit;
         let querySort;
 
         if (this.dbType == 'sql') {
             if (this.limit) {
+                this.limit = parseInt(SqlString.escape(this.limit));
+                this.offset = this.offset ? parseInt(SqlString.escape(this.offset)) : 0;
                 queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
             }
             else {
                 queryLimit = ``;
             }
             if (this.sortRef) {
+                this.sortRef = SqlString.escape(this.sortRef).split("'").join("");
+                this.sortDir = SqlString.escape(this.sortDir).split("'").join("");
                 if (this.sortDir == 'asc') {
                     querySort = `ORDER BY ${this.sortRef} ASC `;
                 }

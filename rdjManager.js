@@ -286,7 +286,7 @@ class RdjManager {
             try{
                 next = this.queue.next.title;
                 previous = this.queue.current.title;
-                current = this.queue.current.title;
+                current = this.queue.previous.title;
                 console.log('song changed',{
                     next,
                     current,
@@ -309,7 +309,7 @@ class RdjManager {
                     current = null;
                 }
                 try{
-                    previous = this.queue.current.title;
+                    previous = this.queue.previous.title;
                 }
                 catch(e){
                     previous = null;

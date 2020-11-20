@@ -82,8 +82,10 @@ class Controller {
                     }
                 }
                 else {
-                    result.resultSet = await this.model.getTables();
-                    result.numOfRows = result.resultSet.length;
+                    //result.resultSet = await this.model.getTables();
+                    //result.numOfRows = result.resultSet.length;
+                    this.sendError(500, 'incomplete request');
+                    return;
                 }
             }
             else if (config.action === 'update') {

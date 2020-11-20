@@ -216,7 +216,7 @@ class RdjManager {
                     this.songPreload = setTimeout(async () => {
                         await this.getNextSong();
                         if(changeCheck != JSON.stringify(this.queue.next)){
-                            console.log('preload changed');
+                            //console.log('preload changed',this.queue.next.title);
                         }
                         changeCheck = JSON.stringify(this.queue.next);
                         this.queue.event.emit('safePreload',this.queue.next);
@@ -225,7 +225,7 @@ class RdjManager {
                 this.songPreload = setTimeout(async () => {
                     await this.getNextSong();
                     if(changeCheck != JSON.stringify(this.queue.next)){
-                        console.log('preload changed yikes');
+                        console.log('preload changed yikes',this.queue.next.title);
                     }
                     changeCheck = JSON.stringify(this.queue.next);
                     this.queue.event.emit('preload',this.queue.next);
@@ -234,7 +234,7 @@ class RdjManager {
             this.songPreload = setTimeout(async () => {
                 await this.getNextSong();
                 if(changeCheck != JSON.stringify(this.queue.next)){
-                    console.log('unsafe preload change stop that lol');
+                    console.log('unsafe preload change stop that lol',this.queue.next.title);
                 }
                 changeCheck = JSON.stringify(this.queue.next);
                 this.queue.event.emit('unsafePreload',this.queue.next);
@@ -270,24 +270,28 @@ class RdjManager {
 
     async initSongEvents(){
 
-        this.queue.event.on('preload',(/*next*/) => {
-            console.log('preload');
+        this.queue.event.on('preload',(next) => {
+            console.log('preload',next.title);
         });
-        this.queue.event.on('safePreload',(/*next*/) => {
-            console.log('safe preload');
-        });
-
-        this.queue.event.on('unsafePreload',(/*next*/) => {
-            console.log('unsafe preload');
+        this.queue.event.on('safePreload',(next) => {
+            console.log('safe preload',next.title);
         });
 
-        this.queue.event.on('song changed',async (/*queue*/) => {
+        this.queue.event.on('unsafePreload',(next) => {
+            console.log('unsafe preload',next.title);
+        });
+
+        this.queue.event.on('song changed',async () => {
             let current,next,previous;
             try{
                 next = this.queue.next.title;
                 previous = this.queue.current.title;
                 current = this.queue.current.title;
-                console.log('song changed');
+                console.log('song changed',{
+                    next,
+                    current,
+                    previous
+                });
             }
             catch(e){
                 await this.timeToNext();
@@ -296,24 +300,25 @@ class RdjManager {
                     next = this.queue.next.title;
                 }
                 catch(e){
-                    // eslint-disable-next-line no-unused-vars
                     next = null;
                 }
                 try{
                     current = this.queue.current.title;
                 }
                 catch(e){
-                    // eslint-disable-next-line no-unused-vars
                     current = null;
                 }
                 try{
                     previous = this.queue.current.title;
                 }
                 catch(e){
-                    // eslint-disable-next-line no-unused-vars
                     previous = null;
                 }
-                console.log('song changed','OTF update');
+                console.log('song changed','OTF update',{
+                    next,
+                    current,
+                    previous
+                });
             }
         });
     }

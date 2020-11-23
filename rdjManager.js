@@ -110,6 +110,10 @@ class RdjManager {
             result.response = JSON.parse(JSON.stringify(this.queue));
             delete result.response.event;
         }
+        else{
+            this.controller.sendError(400, 'invalid action');
+            return;
+        }
 
         if (Array.isArray(result.response)) {
             result.found = result.response.length;

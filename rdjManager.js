@@ -115,6 +115,16 @@ class RdjManager {
             return;
         }
 
+        result = await this.handleArrayResponse(result,config);
+
+        result.timeTaken = Date.now() - processTime + 'ms';
+
+        if(!this.controller.res.headersSent){
+            this.controller.res.json(result);
+        }
+    }
+
+    async handleArrayResponse(result,config){
         if (Array.isArray(result.response)) {
             result.found = result.response.length;
 
@@ -142,12 +152,7 @@ class RdjManager {
             console.error('result has no length');
             return;
         }
-
-        result.timeTaken = Date.now() - processTime + 'ms';
-
-        if(!this.controller.res.headersSent){
-            this.controller.res.json(result);
-        }
+        return result;
     }
 
     async handleGetReq(result,config){

@@ -92,7 +92,7 @@ class Controller {
                 }
                 else {
                     result.resultSet = await this.model.getTables();
-                    result.numOfRows = result.resultSet.length;
+                    result.numOfRows = result.resultSet ? result.resultSet.length : 0;
                     //this.sendError(500, 'incomplete request');
                     //return;
                 }
@@ -146,43 +146,7 @@ class Controller {
         let result = {};
         result.reqDate = new Date().toJSON();
 
-        result.caller = await this.getCaller();
-        if (this.blackListed) {
-            this.sendError(403, 'blackListed');
-            return;
-        }
-
-        if (!this.allowed) {
-            this.sendError(403, 'unauthorized');
-            if(allowed.infringments[result.caller]){
-                allowed.infringments[result.caller]++;
-            }
-            else{
-                allowed.infringments[result.caller]=1;
-            }
-            if(allowed.infringments[result.caller] >= 3){
-                if(!allowed.blackList.includes(result.caller)){
-                    allowed.blackList.push(result.caller);
-                }
-                let caller = result.caller;
-                let whiteList = function(caller){
-                    setTimeout(async () => {
-                        delete allowed.infringments[caller];
-                        allowed.blackList = allowed.blackList.filter(e => e !== caller);
-                        await fs.writeFile('allowed.json', JSON.stringify(allowed), 'utf8');
-                        // eslint-disable-next-line no-empty-function
-                        allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
-                    },3600000);
-                }
-                whiteList(caller,allowed);
-            }
-
-            await fs.writeFile('allowed.json', JSON.stringify(allowed), 'utf8');
-
-            // eslint-disable-next-line no-empty-function
-            allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
-            return;
-        }
+        result.caller = await this.manageBlackList(config.apiKey);
 
         result.response = await this.getRows(config);
 
@@ -194,6 +158,48 @@ class Controller {
         }
         result.timeTaken = Date.now() - processTime + 'ms';
         this.sendJSON(result);
+    }
+
+    async manageBlackList(api){
+        let caller = await this.getCaller();
+        if (this.blackListed) {
+            this.sendError(403, 'blackListed');
+            return;
+        }
+
+        await this.authenticate(api);
+        if (!this.allowed) {
+            this.sendError(403, 'unauthorized');
+            if(allowed.infringments[caller]){
+                allowed.infringments[caller]++;
+            }
+            else{
+                allowed.infringments[caller]=1;
+            }
+            if(allowed.infringments[caller] >= 3){
+                if(!allowed.blackList.includes(caller)){
+                    allowed.blackList.push(caller);
+                }
+                let timedOutCaller = caller;
+                let whiteList = function(timedOutCaller){
+                    setTimeout(async () => {
+                        delete allowed.infringments[timedOutCaller];
+                        allowed.blackList = allowed.blackList.filter(e => e !== timedOutCaller);
+                        await fs.writeFile('allowed.json', JSON.stringify(allowed), 'utf8');
+                        // eslint-disable-next-line no-empty-function
+                        allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
+                    },3600000);
+                }
+                whiteList(timedOutCaller,allowed);
+            }
+
+            await fs.writeFile('allowed.json', JSON.stringify(allowed), 'utf8');
+
+            // eslint-disable-next-line no-empty-function
+            allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
+            return null;
+        }
+        return caller;
     }
 
     async getCaller() {

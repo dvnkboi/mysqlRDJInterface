@@ -3,10 +3,6 @@ const utils = require('./utils');
 const moment = require('moment-timezone');
 const MBA = require('./MBA');
 const { EventEmitter } = require("events");
-const { promises: fs } = require("fs");
-// eslint-disable-next-line no-empty-function
-let allowed = {};
-
 
 class RdjManager {
 
@@ -71,7 +67,6 @@ class RdjManager {
             watchedSchemas: []
         }
         await this.initSongEvents();
-        allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
     }
 
     async processRequest(config) {
@@ -79,44 +74,7 @@ class RdjManager {
             response: []
         };
 
-        result.caller = await this.controller.getCaller();
-        if (this.controller.blackListed) {
-            this.controller.sendError(403, 'blackListed');
-            return;
-        }
-
-        this.controller.authenticate(config.apiKey);
-        if (!this.controller.allowed) {
-            this.controller.sendError(403, 'unauthorized');
-            if(allowed.infringments[result.caller]){
-                allowed.infringments[result.caller]++;
-            }
-            else{
-                allowed.infringments[result.caller]=1;
-            }
-            if(allowed.infringments[result.caller] >= 3){
-                if(!allowed.blackList.includes(result.caller)){
-                    allowed.blackList.push(result.caller);
-                }
-                let caller = result.caller;
-                let whiteList = function(caller){
-                    setTimeout(async () => {
-                        delete allowed.infringments[caller];
-                        allowed.blackList = allowed.blackList.filter(e => e !== caller);
-                        await fs.writeFile('allowed.json', JSON.stringify(allowed), 'utf8');
-                        // eslint-disable-next-line no-empty-function
-                        allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
-                    },3600000);
-                }
-                whiteList(caller,allowed);
-            }
-
-            await fs.writeFile('allowed.json', JSON.stringify(allowed), 'utf8');
-
-            // eslint-disable-next-line no-empty-function
-            allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
-            return;
-        }
+        result.caller = await this.controller.manageBlackList(config.apiKey);
 
         let processTime = Date.now();
         result.reqDate = new Date().toJSON();
@@ -147,7 +105,7 @@ class RdjManager {
             result.response = await this.getStatus();
         }
         else if(config.action == 'get_queue'){
-            await this.getHistory();
+            await this.getHistory(config.limit);
             await this.timeToNext();
             result.response = JSON.parse(JSON.stringify(this.queue));
             delete result.response.event;
@@ -227,13 +185,13 @@ class RdjManager {
         return result;
     }
 
-    async getHistory(){
+    async getHistory(limit){
         let tmpLimit = this.controller.model.limit;
         let tmpoffset = this.controller.model.offset;
         let tmpSortRef = this.controller.model.sortRef;
         let tmpSortDir = this.controller.model.sortDir;
 
-        this.controller.model.limit = 10;
+        this.controller.model.limit = limit ? limit : 10;
         this.controller.model.offset = 0;
         this.controller.model.sortRef = 'ID';
         this.controller.model.sortDir = 'desc';
@@ -333,8 +291,8 @@ class RdjManager {
             let current,next,previous;
             try{
                 next = this.queue.next.title;
-                previous = this.queue.current.title;
-                current = this.queue.previous.title;
+                previous = this.queue.previous.title;
+                current = this.queue.current.title;
                 console.log('song changed',{
                     next,
                     current,
@@ -577,7 +535,12 @@ class RdjManager {
             eta = 0;
         }
         this.queue.timeToNext = eta;
-        this.queue.next.ETA = eta;
+        try{
+            this.queue.next.ETA = eta;
+        }
+        catch(e){
+            this.queue.next = null;
+        }
         return eta;
     }
 

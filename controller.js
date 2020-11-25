@@ -28,12 +28,7 @@ class Controller {
         }
         catch(e){
             allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
-            if (api === this.api && allowed.databases.includes(this.model.dbName)) {
-                this.allowed = true;
-            }
-            else {
-                this.allowed = false;
-            }
+            await this.authenticate(api);
         }
     }
 
@@ -181,7 +176,7 @@ class Controller {
                     allowed.blackList.push(caller);
                 }
                 let timedOutCaller = caller;
-                let whiteList = function(timedOutCaller){
+                let whiteList = (timedOutCaller) => {
                     setTimeout(async () => {
                         delete allowed.infringments[timedOutCaller];
                         allowed.blackList = allowed.blackList.filter(e => e !== timedOutCaller);

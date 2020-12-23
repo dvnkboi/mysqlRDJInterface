@@ -9,6 +9,7 @@ const helmet = require("helmet");
 const https = require('https');
 const fs = require('fs');
 
+
 //globals
 const app = express();
 let model, processor, rdj;
@@ -19,7 +20,7 @@ try{
     key: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/privkey1.pem'),
     cert: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/fullchain1.pem'),
   };
-  
+
   https.createServer(options, app).listen(3000);
   console.log('SSL');
 }
@@ -29,6 +30,12 @@ catch(e){
 }
 
 app.use(helmet());
+
+app.all('/*', function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "X-Requested-With");
+  next();
+});
 
 app.get('/api', function (req, res) {
   const config = {

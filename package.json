@@ -22,7 +22,8 @@
     "mysql": "^2.18.1",
     "mysql-async-wrapper": "^2.0.1",
     "node-windows": "^1.0.0-beta.5",
-    "sqlstring": "^2.3.2"
+    "sqlstring": "^2.3.2",
+    "ws": "^7.4.1"
   },
   "devDependencies": {
     "eslint": "^7.12.0"

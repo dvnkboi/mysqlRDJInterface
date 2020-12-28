@@ -1,3 +1,4 @@
+/* eslint-disable global-require */
 /* eslint-disable no-sync */
 const utils = require('./utils');
 const moment = require('moment-timezone');
@@ -5,8 +6,8 @@ const MBA = require('./MBA');
 const Model = require('./model')
 const { EventEmitter } = require("events");
 const https = require('https');
+var app = require('express')();
 const fs = require('fs');
-const WebSocket = require('ws');
 
 class RdjManager {
 
@@ -35,7 +36,7 @@ class RdjManager {
             this.API.current = res.current;
             this.API.total = res.total;
         });
-        this.queue = {
+        RdjManager.queue = {
             event: new EventEmitter(),
             next: null,
             current: null,
@@ -43,6 +44,7 @@ class RdjManager {
             history: null,
             timeToNext: -1
         }
+        this.history = [];
     }
 
 
@@ -72,7 +74,7 @@ class RdjManager {
             },
             watchedSchemas: []
         }
-        await this.initSongEvents();
+        //await this.initSongEvents();
     }
 
     async processRequest(config) {
@@ -111,13 +113,14 @@ class RdjManager {
             result.response = await this.getStatus();
         }
         else if (config.action == 'get_queue') {
-            await this.getHistory(config.limit);
-            await this.timeToNext();
-            result.response = JSON.parse(JSON.stringify(this.queue));
+            result.response = JSON.parse(JSON.stringify(RdjManager.queue));
             delete result.response.event;
         }
+        else if (config.action == 'get_timeToNext') {
+            result.response = await this.timeToNext();
+        }
         else if (config.action == 'get_art') {
-            result.response = await this.metaStore.getMatching('images', 'desc', (config.entity.trim().split(',')[0].split(' ').join('_') + '_-_' + config.identifier.trim().split(' ').join('_')).toLowerCase(), true);
+            result.response = RdjManager.currentArt;
             delete result.response.event;
         }
         else {
@@ -131,6 +134,16 @@ class RdjManager {
 
         if (!this.controller.res.headersSent) {
             this.controller.res.json(result);
+        }
+    }
+
+    async getArt(){
+        console.log('getting art');
+        if(!RdjManager.currentArt){
+            RdjManager.currentArt = [];
+        }
+        for(var i = 0; i < RdjManager.queue.history.length; i++){
+            RdjManager.currentArt[i] = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.history[i].artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.history[i].album.trim().split(' ').join('_')).toLowerCase(), true);
         }
     }
 
@@ -215,10 +228,13 @@ class RdjManager {
         this.controller.model.sortRef = 'ID';
         this.controller.model.sortDir = 'desc';
 
-        this.queue.history = await this.controller.model.getAll('history');
+        RdjManager.queue.history = await this.controller.model.getAll('history');
 
-        this.queue.current = this.queue.history[0];
-        this.queue.previous = this.queue.history[1];
+        RdjManager.queue.current = RdjManager.queue.history[0];
+        RdjManager.queue.previous = RdjManager.queue.history[1];
+
+        await this.getArt();
+        console.log('got art');
 
         this.controller.model.limit = tmpLimit;
         this.controller.model.offset = tmpoffset;
@@ -234,36 +250,36 @@ class RdjManager {
         }
 
         let changeCheck;
-        changeCheck = JSON.stringify(this.queue.next);
+        changeCheck = JSON.stringify(RdjManager.queue.next);
 
         if (eta - 5000 > 0) {
             if (eta - 10000 > 0) {
                 if (eta - 25000 > 0) {
                     this.songPreload = setTimeout(async () => {
                         await this.getNextSong();
-                        if (changeCheck != JSON.stringify(this.queue.next)) {
-                            //console.log('preload changed',this.queue.next.title);
+                        if (changeCheck != JSON.stringify(RdjManager.queue.next)) {
+                            //console.log('preload changed',RdjManager.queue.next.title);
                         }
-                        changeCheck = JSON.stringify(this.queue.next);
-                        this.queue.event.emit('safePreload', this.queue.next);
+                        changeCheck = JSON.stringify(RdjManager.queue.next);
+                        RdjManager.queue.event.emit('safePreload', RdjManager.queue.next);
                     }, eta - 25000);
                 }
                 this.songPreload = setTimeout(async () => {
                     await this.getNextSong();
-                    if (changeCheck != JSON.stringify(this.queue.next)) {
-                        console.log('preload changed yikes', this.queue.next.title);
+                    if (changeCheck != JSON.stringify(RdjManager.queue.next)) {
+                        console.log('preload changed yikes', RdjManager.queue.next.title);
                     }
-                    changeCheck = JSON.stringify(this.queue.next);
-                    this.queue.event.emit('preload', this.queue.next);
+                    changeCheck = JSON.stringify(RdjManager.queue.next);
+                    RdjManager.queue.event.emit('preload', RdjManager.queue.next);
                 }, eta - 10000);
             }
             this.songPreload = setTimeout(async () => {
                 await this.getNextSong();
-                if (changeCheck != JSON.stringify(this.queue.next)) {
-                    console.log('unsafe preload change stop that lol', this.queue.next.title);
+                if (changeCheck != JSON.stringify(RdjManager.queue.next)) {
+                    console.log('unsafe preload change stop that lol', RdjManager.queue.next.title);
                 }
-                changeCheck = JSON.stringify(this.queue.next);
-                this.queue.event.emit('unsafePreload', this.queue.next);
+                changeCheck = JSON.stringify(RdjManager.queue.next);
+                RdjManager.queue.event.emit('unsafePreload', RdjManager.queue.next);
             }, eta - 5000);
         }
     }
@@ -286,8 +302,7 @@ class RdjManager {
         return this.controller.eventHandler.on('history', async () => {
             eta = await this.timeToNext();
             await this.getHistory();
-            this.queue.event.emit('song changed', this.queue);
-            this.sendJson({ state: 'song changed' });
+            RdjManager.queue.event.emit('songChanged', RdjManager.queue);
             await this.emitPreloadEvents(eta);
 
         });
@@ -295,27 +310,25 @@ class RdjManager {
     }
 
     async initSongEvents() {
-        this.queue.event.on('preload', (next) => {
+        RdjManager.queue.event.on('preload', (next) => {
             console.log('preload', next.title);
-            this.sendJson({ state: 'preload' });
+            RdjManager.sendJson({ state: 'preload' });
         });
-        this.queue.event.on('safePreload', (next) => {
+        RdjManager.queue.event.on('safePreload', (next) => {
             console.log('safe preload', next.title);
-            this.sendJson({ state: 'safe preload' });
         });
 
-        this.queue.event.on('unsafePreload', (next) => {
+        RdjManager.queue.event.on('unsafePreload', (next) => {
             console.log('unsafe preload', next.title);
-            this.sendJson({ state: 'unsafe preload' });
         });
 
-        this.queue.event.on('song changed', async () => {
+        RdjManager.queue.event.on('songChanged', async () => {
             let current, next, previous;
             try {
-                next = this.queue.next.title;
-                previous = this.queue.previous.title;
-                current = this.queue.current.title;
-                console.log('song changed', {
+                next = RdjManager.queue.next.title;
+                previous = RdjManager.queue.previous.title;
+                current = RdjManager.queue.current.title;
+                console.log('songChanged', {
                     next,
                     current,
                     previous
@@ -326,24 +339,24 @@ class RdjManager {
                 await this.timeToNext();
 
                 try {
-                    next = this.queue.next.title;
+                    next = RdjManager.queue.next.title;
                 }
                 catch (e) {
                     next = null;
                 }
                 try {
-                    current = this.queue.current.title;
+                    current = RdjManager.queue.current.title;
                 }
                 catch (e) {
                     current = null;
                 }
                 try {
-                    previous = this.queue.previous.title;
+                    previous = RdjManager.queue.previous.title;
                 }
                 catch (e) {
                     previous = null;
                 }
-                console.log('song changed', 'OTF update', {
+                console.log('songChanged', 'OTF update', {
                     next,
                     current,
                     previous
@@ -386,15 +399,6 @@ class RdjManager {
                 console.error('unhandled event ', event.type);
             }
         });
-    }
-
-    sendJson(object) {
-        if (RdjManager.wss) {
-            if (RdjManager.ws) {
-                object = JSON.stringify(object);
-                RdjManager.ws.send(object);
-            }
-        }
     }
 
     async generalWatcher(table) {
@@ -552,8 +556,8 @@ class RdjManager {
     }
 
     async getNextSong() {
-        this.queue.next = await this.controller.getOne('queuelist', 'ID', 1);
-        return this.queue.next;
+        RdjManager.queue.next = await this.controller.getOne('queuelist', 'ID', 1);
+        return RdjManager.queue.next;
     }
 
     async timeToNext() {
@@ -566,12 +570,12 @@ class RdjManager {
         catch (e) {
             eta = 0;
         }
-        this.queue.timeToNext = eta;
+        RdjManager.queue.timeToNext = eta;
         try {
-            this.queue.next.ETA = eta;
+            RdjManager.queue.next.ETA = eta;
         }
         catch (e) {
-            this.queue.next = null;
+            RdjManager.queue.next = null;
         }
         return eta;
     }
@@ -583,51 +587,53 @@ class RdjManager {
 }
 
 try {
-    RdjManager.server = https.createServer({
-        key: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/privkey1.pem'),
-        cert: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/fullchain1.pem'),
+    let clients = {};
+    RdjManager.sockets= [];
+    let options = {
+        key: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/privkey1.pem', 'utf8'),
+        cert: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/cert1.pem', 'utf8'),
+        ca: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/chain1.pem', 'utf8')
+    };
+    // eslint-disable-next-line new-cap
+    let server = https.createServer(options, app);
+    server.listen(8080);
+    // eslint-disable-next-line global-require
+    const io = require('socket.io')(server, {
+        cors: {
+            origin: "*",
+            methods: ["GET", "POST"]
+        }
     });
-    const wss = new WebSocket.Server({ server: RdjManager.server });
-    RdjManager.wss = wss;
+    app.get('/', function (req, res) {
+        res.send('server is running');
+    });
+    console.log('socket listenning');
+    io.sockets.on('connection', (socket) => {
 
-    RdjManager.ping = () => {
-        RdjManager.ws.send('__ping__');
 
-        RdjManager.socketTimeout = setTimeout(function () {
-
-            console.log('client disconnected');
-
-        }, 5000);
-    }
-
-    RdjManager.pong = () => {
-        clearTimeout(RdjManager.socketTimeout);
-        RdjManager.socketTimeout = null;
-        clearInterval(RdjManager.wsInterval);
-        RdjManager.wsInterval = null;
-        RdjManager.wsInterval = setInterval(RdjManager.ping, 30000);
-    }
-
-    RdjManager.wss.on('connection', function connection(ws) {
-        console.log('connected');
-        //RdjManager.ws = !RdjManager.ws ? [] : RdjManager.ws;
-        RdjManager.ws = ws;
-        RdjManager.wsInterval = setInterval(RdjManager.ping, 30000);
-        ws.on('message', function incoming(evt) {
-            if (evt == '__pong__') {
-                RdjManager.pong();
-                return;
-            }
+        // either with send()
+        socket.send('hello from server : D ' + socket.id);
+        RdjManager.queue.event.removeAllListeners();
+        RdjManager.queue.event.on('preload',() => {
+            io.sockets.emit('preload');
         });
+        RdjManager.queue.event.on('safePreload',() => {
+            io.sockets.emit('safePreload');
+        });
+        RdjManager.queue.event.on('unsafePreload',() => {
+            io.sockets.emit('unsafePreload');
+        });
+        RdjManager.queue.event.on('songChanged',() => {
+            io.sockets.emit('songChanged');
+        });
+
+        // handle the event sent with socket.send()
     });
 
     
-
-    RdjManager.server.listen(8080);
-
 }
 catch (e) {
-
+    console.log(e);
 }
 
 module.exports = RdjManager;

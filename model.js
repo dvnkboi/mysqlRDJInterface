@@ -51,7 +51,7 @@ class Model {
         //manage TTL of connection, is connection does not query for more than ttl, it disconnects 
         this.life = {
             keepAlive: false,
-            ttl: 5000,
+            ttl: 300000,
             timeout: null,
             watcherCount: 0,
             isConnected: false
@@ -303,7 +303,10 @@ class Model {
                 return res;
             }
             catch (err) {
-                console.error(err);
+                console.error('error getting matching');
+                setTimeout(() => {
+                    this.getMatching(table, col, ref, strict);
+                },1000);
                 return null;
             }
             finally {
@@ -555,6 +558,7 @@ class Model {
     }
 
     async manageCollections(table) {
+        await this.connect();
         try {
             if (!this.collections[table]) {
                 this.collections[table] = await this.connection.collection(table);
@@ -563,7 +567,11 @@ class Model {
         }
         catch (e) {
             console.error('error managing collection', table);
-            return false
+            await this.disconnect();
+            setTimeout(async () => {
+                console.log('retrying collection management')
+                await this.manageCollections(table);
+            },1000);
         }
     }
 
@@ -584,7 +592,7 @@ class Model {
             try {
                 console.info('disconnected from ', this.dbName);
                 await this.client.close();
-                this.connection;
+                this.connection = null;
                 this.client = null;
                 this.collections = {};
                 this.eventHandler.hasDied = true;

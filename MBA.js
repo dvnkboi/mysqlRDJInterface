@@ -204,7 +204,7 @@ class MBA {
     }
 
     async getReleaseGroupImgByID(releaseID,desc) {
-        let url = encodeURI(`https://coverartarchive.org//release-group/${releaseID}`);
+        let url = encodeURI(`https://coverartarchive.org/release-group/${releaseID}`);
         let res;
         try {
             res = await this.getJSON(url);
@@ -219,7 +219,7 @@ class MBA {
                 catch(redirect2){
                     if(redirect2.statusCode == 302){
                         res = await this.getJSON(redirect2.headers.location);
-                        let existanceCheck = await this.model.getMatching('images','release',res.release);
+                        let existanceCheck = await this.model.getMatching('images','release',res.release,true);
                         if(existanceCheck.length < 1){
                             console.log('release image not in db');
                             res.desc = desc;
@@ -245,16 +245,15 @@ class MBA {
             else{
                 if(redirect1.statusCode == 404){
                     console.error('not found at redirect 1');
-                    // let existanceCheck = await this.model.getMatching('images','desc',desc);
-                    // if(existanceCheck.length < 1){
-                    //     defaultImg = JSON.parse(JSON.stringify(defaultImg));
-                    //     delete defaultImg['_id'];
-                    //     defaultImg.desc = desc;
-                    //     await this.model.insert('images',defaultImg);
-                    // }
-                    // else{
-                    //     console.info('release',releaseID,'already using default img');
-                    // }
+                    res = {images:null,release:url,desc};
+                    let existanceCheck = await this.model.getMatching('images','desc',desc,true);
+                    if(existanceCheck.length < 1){
+                        console.log('release image not in db and not found');
+                        await this.model.insert('images',res);
+                    }
+                    else{
+                        console.info('release',desc,'already in db');
+                    }
                     return false;
                 }
                 else{

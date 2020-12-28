@@ -22,6 +22,7 @@
     "mysql": "^2.18.1",
     "mysql-async-wrapper": "^2.0.1",
     "node-windows": "^1.0.0-beta.5",
+    "socket.io": "^3.0.4",
     "sqlstring": "^2.3.2",
     "ws": "^7.4.1"
   },

@@ -199,7 +199,6 @@ class Controller {
 
     async getCaller() {
         allowed = JSON.parse(await fs.readFile('./allowed.json', { encoding :'utf-8' }));
-        console.log(allowed.infringments);
         let caller = this.req.headers['x-forwarded-for'] ||
                     this.req.connection.remoteAddress ||
                     this.req.socket.remoteAddress ||
@@ -211,7 +210,6 @@ class Controller {
         else{
             this.blackListed = false;
         }
-        console.log('req from',caller);
         return caller;
     }
 

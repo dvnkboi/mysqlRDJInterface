@@ -123,6 +123,10 @@ class RdjManager {
             result.response = RdjManager.currentArt;
             delete result.response.event;
         }
+        else if(config.action == 'get_next_art'){
+            result.response = RdjManager.nextArt;
+            delete result.response.event;
+        }
         else {
             this.controller.sendError(400, 'invalid action');
             return;
@@ -142,6 +146,8 @@ class RdjManager {
         if(!RdjManager.currentArt){
             RdjManager.currentArt = [];
         }
+        RdjManager.nextArt = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.next.artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.next.album.trim().split(' ').join('_')).toLowerCase(), true);
+        
         for(var i = 0; i < RdjManager.queue.history.length; i++){
             RdjManager.currentArt[i] = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.history[i].artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.history[i].album.trim().split(' ').join('_')).toLowerCase(), true);
         }

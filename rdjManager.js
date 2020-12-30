@@ -82,7 +82,7 @@ class RdjManager {
             response: []
         };
 
-        result.caller = await this.controller.manageBlackList(config.apiKey);
+        result.caller = await this.controller.manageBlackList(config.apiKey,config.action);
 
         let processTime = Date.now();
         result.reqDate = new Date().toJSON();

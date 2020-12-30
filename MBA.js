@@ -168,6 +168,7 @@ class MBA {
                     }
                     try{
                         await this.getRelease(art.trim(), release);
+                        await this.getReleaseGroupImgByDesc(`${art}_-_${release}`.split(' ').join('_').trim().toLowerCase());
                     }
                     catch(e){
                         try{

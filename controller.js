@@ -17,9 +17,9 @@ class Controller {
         this.eventHandler = model.eventHandler.event;
     }
 
-    async authenticate(api) {
+    async authenticate(api,action) {
         try{
-            if (api === this.api && allowed.databases.includes(this.model.dbName)) {
+            if ((api === this.api && allowed.databases.includes(this.model.dbName)) || action in allowed.actions) {
                 this.allowed = true;
             }
             else {

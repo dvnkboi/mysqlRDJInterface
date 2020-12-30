@@ -19,11 +19,16 @@ class Controller {
 
     async authenticate(api,action) {
         try{
-            if ((api === this.api && allowed.databases.includes(this.model.dbName)) || action in allowed.actions) {
+            if(allowed.actions.includes(action)){
                 this.allowed = true;
             }
-            else {
-                this.allowed = false;
+            else{
+                if (api === this.api && allowed.databases.includes(this.model.dbName)) {
+                    this.allowed = true;
+                }
+                else {
+                    this.allowed = false;
+                }
             }
         }
         catch(e){
@@ -155,14 +160,14 @@ class Controller {
         this.sendJSON(result);
     }
 
-    async manageBlackList(api){
+    async manageBlackList(api,action){
         let caller = await this.getCaller();
         if (this.blackListed) {
             this.sendError(403, 'blackListed');
             return;
         }
-
-        await this.authenticate(api);
+        
+        await this.authenticate(api,action);
         if (!this.allowed) {
             this.sendError(403, 'unauthorized');
             if(allowed.infringments[caller]){

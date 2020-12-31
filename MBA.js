@@ -80,7 +80,7 @@ class MBA {
     async getRelease(artist, title, limit, offset) {
         let releaseExistCheck = [];
         let res = {};
-        let desc = `${artist}_-_${title}`.split(' ').join('_').toLowerCase();
+        let desc = `${artist.trim()}_-_${title.trim()}`.split(' ').join('_').toLowerCase();
         
         //console.log(desc);
         limit = limit ? limit : 10;

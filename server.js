@@ -8,6 +8,7 @@ let models = require('./models');
 const helmet = require("helmet");
 const https = require('https');
 const fs = require('fs');
+const comp = require('compression');
 
 
 //globals
@@ -30,6 +31,7 @@ catch(e){
 }
 
 app.use(helmet());
+app.use(comp({ level:1 }));
 
 app.all('/*', function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");

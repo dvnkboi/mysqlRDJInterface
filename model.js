@@ -12,7 +12,7 @@ require('dotenv').config();
 
 class Model {
 
-    constructor(dbName,dbType) {
+    constructor(dbName, dbType) {
         this.dbName = dbName;
         this.dbType = dbType;
         if (this.dbType == "sql") {
@@ -56,6 +56,7 @@ class Model {
             watcherCount: 0,
             isConnected: false
         }
+        this.defaultLimit = 20;
         this.limit;
         this.offset = 0;
         this.sortRef;
@@ -216,6 +217,9 @@ class Model {
     async getMatching(table, col, ref, strict) { //get all items matching col == ref or col like %ref%
         await this.manageLife();
         await this.connect();
+        
+        //default limit
+        this.limit = this.limit ? this.limit : this.defaultLimit;
 
         if (this.dbType == 'sql') {
             let query;
@@ -228,14 +232,11 @@ class Model {
             //pagination and sort
             let queryLimit;
             let querySort;
-            if (this.limit) {
-                this.limit = parseInt(SqlString.escape(this.limit));
-                this.offset = this.offset ? parseInt(SqlString.escape(this.offset)) : 0;
-                queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
-            }
-            else {
-                queryLimit = ``;
-            }
+
+            this.limit = parseInt(SqlString.escape(this.limit));
+            this.offset = this.offset ? parseInt(SqlString.escape(this.offset)) : 0;
+            queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
+
             if (this.sortRef) {
                 this.sortRef = SqlString.escape(this.sortRef).split("'").join("");
                 this.sortDir = SqlString.escape(this.sortDir).split("'").join("");
@@ -291,9 +292,7 @@ class Model {
 
                 await this.manageCollections(table);
                 let res = await this.collections[table].find(filter).skip(this.offset);
-                if (this.limit) {
-                    res = await res.limit(this.limit);
-                }
+                res = await res.limit(this.limit);
                 if (this.sortRef) {
                     let sort = {};
                     sort[this.sortRef] = this.sortDir == "desc" ? -1 : 1;
@@ -306,7 +305,7 @@ class Model {
                 console.error('error getting matching');
                 setTimeout(() => {
                     this.getMatching(table, col, ref, strict);
-                },1000);
+                }, 1000);
                 return null;
             }
             finally {
@@ -326,16 +325,13 @@ class Model {
         //pagination and sort
         let queryLimit;
         let querySort;
+        this.limit = this.limit ? this.limit : this.defaultLimit;
 
         if (this.dbType == 'sql') {
-            if (this.limit) {
-                this.limit = parseInt(SqlString.escape(this.limit));
-                this.offset = this.offset ? parseInt(SqlString.escape(this.offset)) : 0;
-                queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
-            }
-            else {
-                queryLimit = ``;
-            }
+            this.limit = parseInt(SqlString.escape(this.limit));
+            this.offset = this.offset ? parseInt(SqlString.escape(this.offset)) : 0;
+            queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
+
             if (this.sortRef) {
                 this.sortRef = SqlString.escape(this.sortRef).split("'").join("");
                 this.sortDir = SqlString.escape(this.sortDir).split("'").join("");
@@ -370,9 +366,8 @@ class Model {
             try {
                 await this.manageCollections(table);
                 let res = await this.collections[table].find().skip(this.offset);
-                if (this.limit) {
-                    res = await res.limit(this.limit);
-                }
+                res = await res.limit(this.limit);
+
                 if (this.sortRef) {
                     let sort = {};
                     sort[this.sortRef] = this.sortDir == "desc" ? -1 : 1;
@@ -571,7 +566,7 @@ class Model {
             setTimeout(async () => {
                 console.log('retrying collection management')
                 await this.manageCollections(table);
-            },1000);
+            }, 1000);
         }
     }
 

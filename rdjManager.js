@@ -81,7 +81,7 @@ class RdjManager {
         let result = {
             response: []
         };
-        result.caller = await this.controller.manageBlackList(config.apiKey,config.action);
+        result.caller = await this.controller.manageBlackList(config.apiKey, config.action);
 
         let processTime = Date.now();
         result.reqDate = new Date().toJSON();
@@ -122,7 +122,7 @@ class RdjManager {
             result.response = RdjManager.currentArt;
             delete result.response.event;
         }
-        else if(config.action == 'get_next_art'){
+        else if (config.action == 'get_next_art') {
             result.response = RdjManager.nextArt;
             delete result.response.event;
         }
@@ -140,14 +140,14 @@ class RdjManager {
         }
     }
 
-    async getArt(){
+    async getArt() {
         console.log('getting art');
-        if(!RdjManager.currentArt){
+        if (!RdjManager.currentArt) {
             RdjManager.currentArt = [];
         }
         RdjManager.nextArt = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.next.artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.next.album.trim().split(' ').join('_')).toLowerCase(), true);
-        
-        for(var i = 0; i < RdjManager.queue.history.length; i++){
+
+        for (var i = 0; i < RdjManager.queue.history.length; i++) {
             RdjManager.currentArt[i] = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.history[i].artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.history[i].album.trim().split(' ').join('_')).toLowerCase(), true);
         }
     }
@@ -592,8 +592,7 @@ class RdjManager {
 }
 
 try {
-    let clients = {};
-    RdjManager.sockets= [];
+    RdjManager.sockets = [];
     let options = {
         key: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/privkey1.pem', 'utf8'),
         cert: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/cert1.pem', 'utf8'),
@@ -613,29 +612,55 @@ try {
         res.send('server is running');
     });
     console.log('socket listenning');
+    RdjManager.socketOpen = true;
     io.sockets.on('connection', (socket) => {
 
 
         // either with send()
         socket.send('hello from server : D ' + socket.id);
         RdjManager.queue.event.removeAllListeners();
-        RdjManager.queue.event.on('preload',() => {
-            io.sockets.emit('preload');
+        RdjManager.queue.event.on('preload', () => {
+            if (RdjManager.socketOpen) {
+                RdjManager.socketOpen = false;
+                io.sockets.emit('preload');
+                setTimeout(() => {
+                    RdjManager.socketOpen = true 
+                },2000);
+            }
+
         });
-        RdjManager.queue.event.on('safePreload',() => {
-            io.sockets.emit('safePreload');
+        RdjManager.queue.event.on('safePreload', () => {
+            if (RdjManager.socketOpen) {
+                RdjManager.socketOpen = false;
+                io.sockets.emit('safePreload');
+                setTimeout(() => {
+                    RdjManager.socketOpen = true 
+                },2000);
+            }
         });
-        RdjManager.queue.event.on('unsafePreload',() => {
-            io.sockets.emit('unsafePreload');
+        RdjManager.queue.event.on('unsafePreload', () => {
+            if (RdjManager.socketOpen) {
+                RdjManager.socketOpen = false;
+                io.sockets.emit('unsafePreload');
+                setTimeout(() => {
+                    RdjManager.socketOpen = true 
+                },2000);
+            }
         });
-        RdjManager.queue.event.on('songChanged',() => {
-            io.sockets.emit('songChanged');
+        RdjManager.queue.event.on('songChanged', () => {
+            if (RdjManager.socketOpen) {
+                RdjManager.socketOpen = false;
+                io.sockets.emit('songChanged');
+                setTimeout(() => {
+                    RdjManager.socketOpen = true 
+                },2000);
+            }
         });
 
         // handle the event sent with socket.send()
     });
 
-    
+
 }
 catch (e) {
     console.log(e);

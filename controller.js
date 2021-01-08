@@ -247,9 +247,9 @@ class Controller {
         }
     }
 
-    async getAll(table) {
+    async getAll(table,nolimit) {
         if (table) {
-            let result = await this.model.getAll(table);
+            let result = await this.model.getAll(table,nolimit);
             //result = result['0'];
             return result;
         }

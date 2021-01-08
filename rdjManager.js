@@ -36,6 +36,7 @@ class RdjManager {
             this.API.current = res.current;
             this.API.total = res.total;
         });
+        RdjManager.totalLatency = ((943718 * 8) / 256000) * 1000;
         RdjManager.queue = {
             event: new EventEmitter(),
             next: null,
@@ -45,6 +46,10 @@ class RdjManager {
             timeToNext: -1
         }
         this.history = [];
+        this.artRedundancy = {
+            allowed: true,
+            timeout: null
+        };
     }
 
 
@@ -115,7 +120,7 @@ class RdjManager {
             result.response = JSON.parse(JSON.stringify(RdjManager.queue));
             delete result.response.event;
         }
-        else if (config.action == 'get_timeToNext') {
+        else if (config.action == 'get_time_to_next') {
             result.response = await this.timeToNext();
         }
         else if (config.action == 'get_art') {
@@ -141,15 +146,24 @@ class RdjManager {
     }
 
     async getArt() {
-        console.log('getting art');
-        if (!RdjManager.currentArt) {
-            RdjManager.currentArt = [];
-        }
-        RdjManager.nextArt = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.next.artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.next.album.trim().split(' ').join('_')).toLowerCase(), true);
+        if (this.artRedundancy.allowed) {
+            this.artRedundancy.allowed = false;
+            if (!RdjManager.currentArt) {
+                RdjManager.currentArt = [];
+            }
+            RdjManager.nextArt = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.next.artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.next.album.trim().split(' ').join('_')).toLowerCase(), true);
 
-        for (var i = 0; i < RdjManager.queue.history.length; i++) {
-            RdjManager.currentArt[i] = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.history[i].artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.history[i].album.trim().split(' ').join('_')).toLowerCase(), true);
+            for (var i = 0; i < RdjManager.queue.history.length; i++) {
+                RdjManager.currentArt[i] = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.history[i].artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.history[i].album.trim().split(' ').join('_')).toLowerCase(), true);
+            }
         }
+        if (this.artRedundancy.timeout) {
+            clearTimeout(this.artRedundancy.timeout);
+            this.artRedundancy.timeout = null;
+        }
+        this.artRedundancy.timeout = setTimeout(() => {
+            this.artRedundancy.allowed = true;
+        }, 3000);
     }
 
     async handleArrayResponse(result, config) {
@@ -177,8 +191,7 @@ class RdjManager {
             }
         }
         catch (e) {
-            console.error('result has no length');
-            return;
+            return result;
         }
         return result;
     }
@@ -223,23 +236,35 @@ class RdjManager {
     }
 
     async getHistory(limit) {
+        await this.getCurrentSong();
+
         let tmpLimit = this.controller.model.limit;
         let tmpoffset = this.controller.model.offset;
         let tmpSortRef = this.controller.model.sortRef;
         let tmpSortDir = this.controller.model.sortDir;
+        let offset = Date.now() - new Date(RdjManager.queue.current.date_played).getTime() < RdjManager.totalLatency;
 
-        this.controller.model.limit = limit ? limit : 10;
+        if (offset) {
+            this.controller.model.limit = limit ? limit + 1 : 21;
+        }
+        else {
+            this.controller.model.limit = limit ? limit : 20;
+        }
+
         this.controller.model.offset = 0;
         this.controller.model.sortRef = 'ID';
         this.controller.model.sortDir = 'desc';
 
         RdjManager.queue.history = await this.controller.model.getAll('history');
 
+        if (offset) {
+            RdjManager.queue.history.splice(0, 1);
+        }
+
         RdjManager.queue.current = RdjManager.queue.history[0];
         RdjManager.queue.previous = RdjManager.queue.history[1];
 
         await this.getArt();
-        console.log('got art');
 
         this.controller.model.limit = tmpLimit;
         this.controller.model.offset = tmpoffset;
@@ -261,29 +286,29 @@ class RdjManager {
             if (eta - 10000 > 0) {
                 if (eta - 25000 > 0) {
                     this.songPreload = setTimeout(async () => {
-                        await this.getNextSong();
-                        if (changeCheck != JSON.stringify(RdjManager.queue.next)) {
-                            //console.log('preload changed',RdjManager.queue.next.title);
-                        }
-                        changeCheck = JSON.stringify(RdjManager.queue.next);
+                        // await this.getNextSong();
+                        // if (changeCheck != JSON.stringify(RdjManager.queue.next)) {
+                        //     //console.log('preload changed',RdjManager.queue.next.title);
+                        // }
+                        // changeCheck = JSON.stringify(RdjManager.queue.next);
                         RdjManager.queue.event.emit('safePreload', RdjManager.queue.next);
                     }, eta - 25000);
                 }
                 this.songPreload = setTimeout(async () => {
-                    await this.getNextSong();
-                    if (changeCheck != JSON.stringify(RdjManager.queue.next)) {
-                        console.log('preload changed yikes', RdjManager.queue.next.title);
-                    }
-                    changeCheck = JSON.stringify(RdjManager.queue.next);
+                    // await this.getNextSong();
+                    // if (changeCheck != JSON.stringify(RdjManager.queue.next)) {
+                    //     console.log('preload changed yikes', RdjManager.queue.next.title);
+                    // }
+                    // changeCheck = JSON.stringify(RdjManager.queue.next);
                     RdjManager.queue.event.emit('preload', RdjManager.queue.next);
                 }, eta - 10000);
             }
             this.songPreload = setTimeout(async () => {
-                await this.getNextSong();
-                if (changeCheck != JSON.stringify(RdjManager.queue.next)) {
-                    console.log('unsafe preload change stop that lol', RdjManager.queue.next.title);
-                }
-                changeCheck = JSON.stringify(RdjManager.queue.next);
+                // await this.getNextSong();
+                // if (changeCheck != JSON.stringify(RdjManager.queue.next)) {
+                //     console.log('unsafe preload change stop that lol', RdjManager.queue.next.title);
+                // }
+                // changeCheck = JSON.stringify(RdjManager.queue.next);
                 RdjManager.queue.event.emit('unsafePreload', RdjManager.queue.next);
             }, eta - 5000);
         }
@@ -302,14 +327,15 @@ class RdjManager {
             this.songPreload = null;
         }
 
-        await this.emitPreloadEvents(eta);
+        await this.emitPreloadEvents(eta + RdjManager.totalLatency);
 
         return this.controller.eventHandler.on('history', async () => {
-            eta = await this.timeToNext();
-            await this.getHistory();
-            RdjManager.queue.event.emit('songChanged', RdjManager.queue);
-            await this.emitPreloadEvents(eta);
-
+            setTimeout(async () => {
+                eta = await this.timeToNext();
+                await this.getHistory();
+                RdjManager.queue.event.emit('songChanged', RdjManager.queue);
+                await this.emitPreloadEvents(eta + RdjManager.totalLatency);
+            }, RdjManager.totalLatency);
         });
 
     }
@@ -328,45 +354,7 @@ class RdjManager {
         });
 
         RdjManager.queue.event.on('songChanged', async () => {
-            let current, next, previous;
-            try {
-                next = RdjManager.queue.next.title;
-                previous = RdjManager.queue.previous.title;
-                current = RdjManager.queue.current.title;
-                console.log('songChanged', {
-                    next,
-                    current,
-                    previous
-                });
-
-            }
-            catch (e) {
-                await this.timeToNext();
-
-                try {
-                    next = RdjManager.queue.next.title;
-                }
-                catch (e) {
-                    next = null;
-                }
-                try {
-                    current = RdjManager.queue.current.title;
-                }
-                catch (e) {
-                    current = null;
-                }
-                try {
-                    previous = RdjManager.queue.previous.title;
-                }
-                catch (e) {
-                    previous = null;
-                }
-                console.log('songChanged', 'OTF update', {
-                    next,
-                    current,
-                    previous
-                });
-            }
+            console.log('song changed');
         });
     }
 
@@ -406,18 +394,21 @@ class RdjManager {
         });
     }
 
-    async generalWatcher(table) {
+    async generalWatcher(table,insertFn,updateFn,deleteFn) {
         await this.controller.watch(`radiodj2020.${table}.*`);
 
-        return this.controller.eventHandler.on(table, (event) => {
+        return this.controller.eventHandler.on(table, async (event) => {
             if (event.type == 'INSERT') {
                 console.log('add event ', event.table, event.affectedColumns, event.affectedRows[0].after.ID);
+                await insertFn(event);
             }
             else if (event.type == 'DELETE') {
                 console.log('remove event ', event.table, event.affectedColumns, event.affectedRows[0].before.ID);
+                await updateFn(event);
             }
             else if (event.type == 'UPDATE') {
                 console.log('update event ', event.table, event.affectedColumns, event.affectedRows[0].before.ID);
+                await deleteFn(event);
             }
             else {
                 console.error('unhandled event ', event.type);
@@ -466,33 +457,33 @@ class RdjManager {
     async updateMeta() {
         this.API.action = 'update metadata';
         this.API.status = 'started';
-        if (!this.controller.res.headersSent) {
-            this.controller.res.json({
-                action: this.API.action,
-                songsProcessed: 'all',
-                status: this.API.status
-            });
-        }
-        let songs = await this.controller.getAll('songs');
-        this.API.buffer = {};
-        let proxy = this;
-        for (const song of songs) {
-            //console.log('song added ', `${song.artist} - ${song.title} (${song.album})`);
-            try {
-                proxy.API.buffer[song.artist].push(song.album);
+        let songs;
+        if (!this.API.busy) {
+            if (!this.controller.res.headersSent) {
+                this.controller.res.json({
+                    action: this.API.action,
+                    songsProcessed: 'all',
+                    status: this.API.status
+                });
+            }
+            songs = await this.controller.getAll('songs',true);
+            this.API.buffer = {};
+            let proxy = this;
+            for (const song of songs) {
+                //console.log('song added ', `${song.artist} - ${song.title} (${song.album})`);
+                try {
+                    proxy.API.buffer[song.artist].push(song.album);
 
+                }
+                catch (e) {
+                    proxy.API.buffer[song.artist] = [];
+                    proxy.API.buffer[song.artist.trim()].push(song.album);
+                }
             }
-            catch (e) {
-                proxy.API.buffer[song.artist] = [];
-                proxy.API.buffer[song.artist.trim()].push(song.album);
-            }
+            await this.flushBufferToMeta();
         }
-        await this.flushBufferToMeta();
-        return {
-            action: this.API.action,
-            songsProcessed: songs.length,
-            status: this.API.status
-        };
+        
+        return this.getStatus();
     }
 
     async updateArtwork() {
@@ -561,8 +552,35 @@ class RdjManager {
     }
 
     async getNextSong() {
-        RdjManager.queue.next = await this.controller.getOne('queuelist', 'ID', 1);
+        if (!RdjManager.queue.current) {
+            await this.getCurrentSong();
+        }
+        if (Date.now() - new Date(RdjManager.queue.current.date_played).getTime() < RdjManager.totalLatency)
+            RdjManager.queue.next = await this.getCurrentSong();
+        else
+            RdjManager.queue.next = await this.controller.getOne('queuelist', 'ID', 1);
         return RdjManager.queue.next;
+    }
+
+    async getCurrentSong() {
+        let tmpLimit = this.controller.model.limit;
+        let tmpoffset = this.controller.model.offset;
+        let tmpSortRef = this.controller.model.sortRef;
+        let tmpSortDir = this.controller.model.sortDir;
+
+        this.controller.model.limit = 1;
+        this.controller.model.offset = 0;
+        this.controller.model.sortRef = 'ID';
+        this.controller.model.sortDir = 'desc';
+
+        RdjManager.queue.current = await this.controller.model.getAll('history');
+        RdjManager.queue.current = RdjManager.queue.current[0];
+        this.controller.model.limit = tmpLimit;
+        this.controller.model.offset = tmpoffset;
+        this.controller.model.sortRef = tmpSortRef;
+        this.controller.model.sortDir = tmpSortDir;
+
+        return RdjManager.queue.current;
     }
 
     async timeToNext() {
@@ -624,8 +642,8 @@ try {
                 RdjManager.socketOpen = false;
                 io.sockets.emit('preload');
                 setTimeout(() => {
-                    RdjManager.socketOpen = true 
-                },2000);
+                    RdjManager.socketOpen = true
+                }, 2000);
             }
 
         });
@@ -634,8 +652,8 @@ try {
                 RdjManager.socketOpen = false;
                 io.sockets.emit('safePreload');
                 setTimeout(() => {
-                    RdjManager.socketOpen = true 
-                },2000);
+                    RdjManager.socketOpen = true
+                }, 2000);
             }
         });
         RdjManager.queue.event.on('unsafePreload', () => {
@@ -643,8 +661,8 @@ try {
                 RdjManager.socketOpen = false;
                 io.sockets.emit('unsafePreload');
                 setTimeout(() => {
-                    RdjManager.socketOpen = true 
-                },2000);
+                    RdjManager.socketOpen = true
+                }, 2000);
             }
         });
         RdjManager.queue.event.on('songChanged', () => {
@@ -652,8 +670,8 @@ try {
                 RdjManager.socketOpen = false;
                 io.sockets.emit('songChanged');
                 setTimeout(() => {
-                    RdjManager.socketOpen = true 
-                },2000);
+                    RdjManager.socketOpen = true
+                }, 2000);
             }
         });
 

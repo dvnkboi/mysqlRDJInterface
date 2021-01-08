@@ -286,7 +286,7 @@ class Model {
                 filter[col] = ref;
             }
             else {
-                filter[col] = { $regex: `.*${ref}.*` };
+                filter[col] = {'$regex': ref, '$options': 'i'};
             }
             try {
 
@@ -315,10 +315,10 @@ class Model {
         }
     }
 
-    async getAll(table) {
+    async getAll(table,nolimit) {
         await this.manageLife();
         await this.connect();
-
+            
         //escaping
         table = SqlString.escape(table).split("'").join("");
 
@@ -328,9 +328,11 @@ class Model {
         this.limit = this.limit ? this.limit : this.defaultLimit;
 
         if (this.dbType == 'sql') {
-            this.limit = parseInt(SqlString.escape(this.limit));
-            this.offset = this.offset ? parseInt(SqlString.escape(this.offset)) : 0;
-            queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
+            if(!nolimit){
+                this.limit = parseInt(SqlString.escape(this.limit));
+                this.offset = this.offset ? parseInt(SqlString.escape(this.offset)) : 0;
+                queryLimit = `LIMIT ${this.limit} OFFSET ${this.offset} `;
+            }
 
             if (this.sortRef) {
                 this.sortRef = SqlString.escape(this.sortRef).split("'").join("");
@@ -366,7 +368,10 @@ class Model {
             try {
                 await this.manageCollections(table);
                 let res = await this.collections[table].find().skip(this.offset);
-                res = await res.limit(this.limit);
+                
+                if(!nolimit){
+                    res = await res.limit(this.limit);
+                }
 
                 if (this.sortRef) {
                     let sort = {};

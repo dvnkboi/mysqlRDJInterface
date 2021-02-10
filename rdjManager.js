@@ -279,8 +279,8 @@ class RdjManager {
             this.songPreload = null;
         }
 
-        let changeCheck;
-        changeCheck = JSON.stringify(RdjManager.queue.next);
+        // let changeCheck;
+        // changeCheck = JSON.stringify(RdjManager.queue.next);
 
         if (eta - 5000 > 0) {
             if (eta - 10000 > 0) {

@@ -146,24 +146,29 @@ class RdjManager {
     }
 
     async getArt() {
-        if (this.artRedundancy.allowed) {
-            this.artRedundancy.allowed = false;
-            if (!RdjManager.currentArt) {
-                RdjManager.currentArt = [];
+        try{
+            if (this.artRedundancy.allowed) {
+                this.artRedundancy.allowed = false;
+                if (!RdjManager.currentArt) {
+                    RdjManager.currentArt = [];
+                }
+                RdjManager.nextArt = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.next.artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.next.album.trim().split(' ').join('_')).toLowerCase(), true);
+    
+                for (var i = 0; i < RdjManager.queue.history.length; i++) {
+                    RdjManager.currentArt[i] = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.history[i].artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.history[i].album.trim().split(' ').join('_')).toLowerCase(), true);
+                }
             }
-            RdjManager.nextArt = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.next.artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.next.album.trim().split(' ').join('_')).toLowerCase(), true);
-
-            for (var i = 0; i < RdjManager.queue.history.length; i++) {
-                RdjManager.currentArt[i] = await this.metaStore.getMatching('images', 'desc', (RdjManager.queue.history[i].artist.trim().split(',')[0].split(' ').join('_') + '_-_' + RdjManager.queue.history[i].album.trim().split(' ').join('_')).toLowerCase(), true);
+            if (this.artRedundancy.timeout) {
+                clearTimeout(this.artRedundancy.timeout);
+                this.artRedundancy.timeout = null;
             }
+            this.artRedundancy.timeout = setTimeout(() => {
+                this.artRedundancy.allowed = true;
+            }, 3000);
         }
-        if (this.artRedundancy.timeout) {
-            clearTimeout(this.artRedundancy.timeout);
-            this.artRedundancy.timeout = null;
+        catch(e){
+            console.log('couldnt get art');
         }
-        this.artRedundancy.timeout = setTimeout(() => {
-            this.artRedundancy.allowed = true;
-        }, 3000);
     }
 
     async handleArrayResponse(result, config) {
@@ -236,40 +241,46 @@ class RdjManager {
     }
 
     async getHistory(limit) {
-        await this.getCurrentSong();
+        try{
 
-        let tmpLimit = this.controller.model.limit;
-        let tmpoffset = this.controller.model.offset;
-        let tmpSortRef = this.controller.model.sortRef;
-        let tmpSortDir = this.controller.model.sortDir;
-        let offset = Date.now() - new Date(RdjManager.queue.current.date_played).getTime() < RdjManager.totalLatency;
-
-        if (offset) {
-            this.controller.model.limit = limit ? limit + 1 : 21;
+            await this.getCurrentSong();
+    
+            let tmpLimit = this.controller.model.limit;
+            let tmpoffset = this.controller.model.offset;
+            let tmpSortRef = this.controller.model.sortRef;
+            let tmpSortDir = this.controller.model.sortDir;
+            let offset = Date.now() - new Date(RdjManager.queue.current.date_played).getTime() < RdjManager.totalLatency;
+    
+            if (offset) {
+                this.controller.model.limit = limit ? limit + 1 : 21;
+            }
+            else {
+                this.controller.model.limit = limit ? limit : 20;
+            }
+    
+            this.controller.model.offset = 0;
+            this.controller.model.sortRef = 'ID';
+            this.controller.model.sortDir = 'desc';
+    
+            RdjManager.queue.history = await this.controller.model.getAll('history');
+    
+            if (offset) {
+                RdjManager.queue.history.splice(0, 1);
+            }
+    
+            RdjManager.queue.current = RdjManager.queue.history[0];
+            RdjManager.queue.previous = RdjManager.queue.history[1];
+    
+            await this.getArt();
+    
+            this.controller.model.limit = tmpLimit;
+            this.controller.model.offset = tmpoffset;
+            this.controller.model.sortRef = tmpSortRef;
+            this.controller.model.sortDir = tmpSortDir;
         }
-        else {
-            this.controller.model.limit = limit ? limit : 20;
+        catch(e){
+            console.log('couldnt get history');
         }
-
-        this.controller.model.offset = 0;
-        this.controller.model.sortRef = 'ID';
-        this.controller.model.sortDir = 'desc';
-
-        RdjManager.queue.history = await this.controller.model.getAll('history');
-
-        if (offset) {
-            RdjManager.queue.history.splice(0, 1);
-        }
-
-        RdjManager.queue.current = RdjManager.queue.history[0];
-        RdjManager.queue.previous = RdjManager.queue.history[1];
-
-        await this.getArt();
-
-        this.controller.model.limit = tmpLimit;
-        this.controller.model.offset = tmpoffset;
-        this.controller.model.sortRef = tmpSortRef;
-        this.controller.model.sortDir = tmpSortDir;
     }
 
     async emitPreloadEvents(eta) {

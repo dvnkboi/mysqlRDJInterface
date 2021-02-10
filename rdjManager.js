@@ -612,9 +612,9 @@ class RdjManager {
 try {
     RdjManager.sockets = [];
     let options = {
-        key: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/privkey1.pem', 'utf8'),
-        cert: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/cert1.pem', 'utf8'),
-        ca: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/chain1.pem', 'utf8')
+        key: fs.readFileSync('C:/Certbot/live/api.ampupradio.com-0001/privkey.pem', 'utf8'),
+        cert: fs.readFileSync('C:/Certbot/live/api.ampupradio.com-0001/cert.pem', 'utf8'),
+        ca: fs.readFileSync('C:/Certbot/live/api.ampupradio.com-0001/chain.pem', 'utf8')
     };
     // eslint-disable-next-line new-cap
     let server = https.createServer(options, app);

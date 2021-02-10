@@ -18,8 +18,8 @@ let model, processor, rdj;
 try{
 
   let options = {
-    key: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/privkey1.pem'),
-    cert: fs.readFileSync('C:/Certbot/archive/api.ampupradio.com/fullchain1.pem'),
+    key: fs.readFileSync('C:/Certbot/live/api.ampupradio.com-0001/privkey.pem'),
+    cert: fs.readFileSync('C:/Certbot/live/api.ampupradio.com-0001/fullchain.pem'),
   };
 
   https.createServer(options, app).listen(3000);

@@ -250,7 +250,7 @@ class RdjManager {
             let tmpSortRef = this.controller.model.sortRef;
             let tmpSortDir = this.controller.model.sortDir;
             let offset = Date.now() - new Date(RdjManager.queue.current.date_played).getTime() < RdjManager.totalLatency;
-    
+            
             if (offset) {
                 this.controller.model.limit = limit ? limit + 1 : 21;
             }

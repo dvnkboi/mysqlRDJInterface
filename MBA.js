@@ -104,7 +104,6 @@ class MBA {
 
       let url = encodeURI(`https://musicbrainz.org/ws/2/release-group?query=artist:"${artist}" AND release:${title}&limit=${limit}&offset=${offset}`);
       res = await this.getJSON(url);
-
       res.desc = desc;
       delete res.offset;
 
@@ -159,6 +158,15 @@ class MBA {
 
    async getMultipleReleases(artistRelease) {
       let artists;
+
+      let total = 0;
+
+      for(const artist in artistRelease){
+         for(const release in artistRelease[artist]){
+            total++;            
+         }
+      }
+
       for (const artist in artistRelease) {
          for (const release of artistRelease[artist]) {
             artists = artist.split(',');
@@ -187,7 +195,8 @@ class MBA {
 
                this.events.current++;
                this.events.event.emit('next', {
-                  current: this.events.current
+                  current: this.events.current,
+                  total
                });
 
                this.retry.timeout = setTimeout(async () => {
@@ -199,8 +208,9 @@ class MBA {
             }
          }
       }
+      this.events.current = total;
+      this.events.event.emit('done', this.events.current,total);
       this.events.current = 0;
-      this.events.event.emit('done', this.events.current);
    }
 
    async getReleaseGroupImgByID(releaseID, desc) {
@@ -304,11 +314,12 @@ class MBA {
             }
          }
       }
-      this.events.current = 0;
+      this.events.current = total;
       this.events.event.emit('done', {
          current: this.events.current,
          total
       });
+      this.events.current = 0;
    }
 
    async authorise() {

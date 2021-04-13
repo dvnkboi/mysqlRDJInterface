@@ -237,7 +237,7 @@ class MBA {
                if (redirect2.statusCode == 302) {
                   res = await this.getJSON(redirect2.headers.location);
                   res.desc = desc;
-                  await this.model.insert('images', res);
+                  if(!res.release.includes('release-group')) await this.model.insert('images', res);
                   return res;
                }
                else {
@@ -255,15 +255,6 @@ class MBA {
          else {
             if (redirect1.statusCode == 404) {
                console.error('not found at redirect 1');
-               res = { images: null, release: url, desc };
-               let existanceCheck = await this.model.getMatching('images', 'desc', desc, true);
-               if (existanceCheck.length < 1) {
-                  console.log('release image not in db and not found');
-                  await this.model.insert('images', res);
-               }
-               else {
-                  console.info('release', desc, 'already in db');
-               }
                return false;
             }
             else {

@@ -30,7 +30,9 @@ catch(e){
   console.log('SSL DISABLED');
 }
 
-app.use(helmet());
+app.use(helmet({
+  hsts:false
+}));
 app.use(comp({ level:1 }));
 
 app.all('/*', function(req, res, next) {

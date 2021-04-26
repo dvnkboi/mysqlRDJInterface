@@ -1,0 +1,64 @@
+V2 API
+
+https://api.ampupradio.com:3000/v2?[[QUERY PARAMETERS]]
+
+
+QUERY PARAMETERS:
+  <!-- query params followed by * are mandatory -->
+  action*: action to perform on api
+    <!--actions get_queue, get_art, get_next_art, get_time_to_next, get_next art dont require an api key-->
+    -->possible values: 
+      get: gets items from the song database, requires the use of the selection parameters bellow (entity, identifier, refs...)
+      get_queue: gets the next, current and previous song along with 19 of the last played songs, does not require any other params
+      get_art: gets art for the current song along with 19 of the last played songs, does not require any other params
+      get_next_art: gets art for the next song
+      get_time_to_next: gets the time remaining for the next song to play in ms
+      update_meta: schedules an async metadata update on the server (server update chain will be busy until update job is done)
+      update_artwork: schedules an async artwork update on the server (server update chain will be busy until update job is done)
+      get_status: gets current status of the server (busy, started job, finished job...), aswell as current progress in items, example 50/100
+    
+
+
+  entity: similar to a db table, except it is limited to song and not their metadata
+    <!--using no entity will return an array of all the tables in the database-->
+    -->possible values: songs, history, queuelist, category, genre, events, playlists, carts, rotations, users...
+
+
+  specific element selection:
+    <!-- specifiying a col without a ref will return an error -->
+    identifier: any existing attribute within selected entity
+
+    refs: value/values to match the indentifier against 
+    -->examples:
+      <!--let the identifier be title-->
+      jealous,happy,watershed: will get all songs with jealous, happy, watershed in the title
+      jealous: will get all songs with jealous in the title
+    -->bad practices:
+      duplicates: while duplicates are accounted for in the refs (duplicate refs will not result in duplicate returns) this is a bad practice as it wastes server resources for no benefits
+      repetitive requests: using repetitive requests is always much slower than compiling the list of refs to get then grabbing them all at once
+
+    strict: specifies wether matching should be done strictly or not 
+      -->false will match agaisnt values LIKE %ref%, true matches with an equality 
+      -->default value is false
+    
+    -->example: identifier=name refs=max may get both rows with the name max and maxx, while identifier=name refs=max strict=true will only get rows with the name max
+  
+
+  pagination:
+    limit: number of rows to get
+      -->default value is 20
+
+    page: current page to show
+      -->default is 0 (first page)
+
+
+  sorting:
+    <!-- specifying a direction with no sortref will do nothing -->
+    sortref: attribute/field to sort by
+
+    sortdir: sorting direction
+      -->possible values: asc, desc
+   
+
+  hidden params:
+    apikey: api key to access the v1 api

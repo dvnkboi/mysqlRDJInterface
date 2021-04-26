@@ -1,0 +1,49 @@
+V1 API
+
+https://api.ampupradio.com:3000/api?[[QUERY PARAMETERS]]
+
+
+QUERY PARAMETERS:
+  <!-- query params followed by * are mandatory -->
+  action*: action to perform on api
+    -->possible values: get 
+
+
+  db*: database to select
+    -->possible values: radiodj2020, store
+
+
+  table: any existing collection/table within selected database
+
+
+  specific element selection:
+    <!-- specifiying a col without a ref will return an error -->
+    col: any existing attribute/key within selected collection/table
+
+    ref: value to match col against
+
+    mod1: specifies wether matching should be done strictly or not 
+      -->false will match agaisnt values LIKE %ref%, true matches with an equality 
+      -->default value is false
+    
+    -->example: col=name ref=max may get both rows with the name max and maxx, while col=name ref=max mod1=true will only get rows with the name max
+  
+
+  pagination:
+    limit: number of rows to get
+      -->default value is 20
+
+    page: current page to show
+      -->default is 0 (first page)
+
+
+  sorting:
+    <!-- specifying a direction with no sortref will do nothing -->
+    sortref: attribute/field to sort by
+
+    sortdir: sorting direction
+      -->possible values: asc, desc
+   
+
+  hidden params:
+    apikey: api key to access the v1 api
